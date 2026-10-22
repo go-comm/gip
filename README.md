@@ -414,6 +414,26 @@ The version can be set at build time with
 $ go build -ldflags "-X main.versionOverride=v1.2.3" ./cmd/gip
 ```
 
+### Releasing
+
+A release is a commit followed by an annotated tag, in that order, so that the
+tag carries the changelog entry and the version of the source tree with it.
+
+1. Add the section of the new version to `CHANGELOG.md`.
+2. Set `defaultVersion` in `cmd/gip/version.go` to the new version, and update
+   the version numbers in the README files with it.
+3. Run `gofmt -l .`, `go vet ./...` and `go test ./...`.
+4. Commit with the message `Release vX.Y.Z`, then tag the commit and push both:
+
+```console
+$ git tag -a vX.Y.Z -m "Release vX.Y.Z"
+$ git push origin master --tags
+```
+
+A tag cannot be taken back once it has been pushed: the Go module proxy keeps
+a copy of the module under that version and refuses a different commit under
+the same one. Tag only after the checks above have passed.
+
 ## Changelog
 
 The changes of every release are listed in [CHANGELOG.md](CHANGELOG.md).

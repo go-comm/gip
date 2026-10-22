@@ -325,6 +325,22 @@ $ go test ./...
 $ go build -ldflags "-X main.versionOverride=v1.2.3" ./cmd/gip
 ```
 
+### 发布
+
+一次发布是一个提交加一个附注标签，顺序如此，tag 里才既带变更记录又带源码树的版本号。
+
+1. 在 `CHANGELOG.md` 里加上新版本的段落。
+2. 把 `cmd/gip/version.go` 里的 `defaultVersion` 改成新版本号，两份 README 里的版本号一并更新。
+3. 跑 `gofmt -l .`、`go vet ./...`、`go test ./...`。
+4. 以 `Release vX.Y.Z` 为提交信息提交，然后给该提交打 tag 并一起推送：
+
+```console
+$ git tag -a vX.Y.Z -m "Release vX.Y.Z"
+$ git push origin master --tags
+```
+
+标签一旦推出去就收不回来：Go module proxy 会按该版本缓存模块，同一个版本号下换一个 commit 会被拒绝。所以只在上面的检查都通过之后再打 tag。
+
 ## 变更记录
 
 每个版本的改动见 [CHANGELOG.md](CHANGELOG.md)。
