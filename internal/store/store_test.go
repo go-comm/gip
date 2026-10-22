@@ -45,6 +45,13 @@ func newStore(t *testing.T, versions ...string) *Store {
 func TestGorootLink(t *testing.T) {
 	s := newStore(t, "1.22.0", "1.19.10")
 
+	// The link belongs to the current directory, next to the bin and gobin
+	// links.
+	want := filepath.Join(s.CurrentDir(), "goroot")
+	if s.GorootLink() != want {
+		t.Errorf("GorootLink() = %q, want %q", s.GorootLink(), want)
+	}
+
 	if err := s.Use("1.22.0"); err != nil {
 		t.Fatal(err)
 	}
@@ -57,13 +64,23 @@ func TestGorootLink(t *testing.T) {
 		t.Errorf("the GOROOT link does not hold a src directory: %v", err)
 	}
 
-	// Switching the release moves the link.
+	// Switching the release moves all three links at once.
 	if err := s.Use("1.19.10"); err != nil {
 		t.Fatal(err)
 	}
 	v, ok = s.GorootVersion()
 	if !ok || v != "1.19.10" {
 		t.Errorf("GorootVersion() = %q, %v; want 1.19.10", v, ok)
+	}
+	for _, l := range s.currentLinks("1.19.10") {
+		target, err := os.Readlink(l.path)
+		if err != nil {
+			t.Errorf("Readlink(%s): %v", l.path, err)
+			continue
+		}
+		if !strings.Contains(filepath.ToSlash(target), "1.19.10") {
+			t.Errorf("%s points at %q, want the 1.19.10 release", l.path, target)
+		}
 	}
 }
 

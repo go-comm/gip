@@ -175,15 +175,15 @@ Everything lives under `~/.gip`, or `$GIP_HOME` if it is set:
 ├── gocache/
 │   ├── 1.19.10/          <- GOCACHE of that release
 │   └── 1.22.0/
-├── goroot -> versions/1.22.0    <- GOROOT of the current release
 └── current/
     ├── bin   -> ../versions/1.22.0/bin
-    └── gobin -> ../gobin/1.22.0
+    ├── gobin -> ../gobin/1.22.0
+    └── goroot -> ../versions/1.22.0
 ```
 
 `GOROOT` always points at `versions/<version>`, never at `current`: the
-`current` directory only holds the two links and is missing the `src`, `pkg`
-and `lib` directories a GOROOT needs. The `current` links exist as a
+`current` directory only holds links and is missing the `src`, `pkg` and
+`lib` directories a GOROOT needs. The `current` links exist as a
 convenience for people who put `~/.gip/current/bin` on their `PATH`.
 
 Every go command that gip runs has the `GOROOT`, `GOBIN` and `GOCACHE` of
@@ -193,9 +193,9 @@ across toolchain versions can lead to subtle differences in the produced
 artefacts.
 
 Both links of `current` are switched together. They are staged under
-temporary names and renamed into place, and a failure of the second rename
-rolls the first one back, so the previous selection stays intact. The
-`goroot` link is switched along with them.
+temporary names and renamed into place, and a failure of a rename restores
+the previous selection, so it stays intact. The `goroot` link is switched
+along with them.
 
 ## Third party tools
 
@@ -235,11 +235,11 @@ A tool that needs a GOROOT, such as the VS Code Go extension, cannot use
 `current`: that directory holds only the `bin` and `gobin` links and is
 missing the `src`, `pkg` and `lib` directories a GOROOT consists of.
 
-The `goroot` link of the gip home directory points at a whole GOROOT of the
+The `goroot` link of the current directory points at a whole GOROOT of the
 current release:
 
 ```
-~/.gip/goroot -> versions/1.22.0
+~/.gip/current/goroot -> ../versions/1.22.0
 ```
 
 Its path does not change when the release changes, so it can be used in a
@@ -253,7 +253,7 @@ CURRENT    1.22.0
 GOROOT     /home/user/.gip/versions/1.22.0
 GOBIN      /home/user/.gip/gobin/1.22.0
 GOCACHE    /home/user/.gip/gocache/1.22.0
-GOROOT_LINK /home/user/.gip/goroot
+GOROOT_LINK /home/user/.gip/current/goroot
 MIRROR     https://go.dev/dl
 ```
 

@@ -142,17 +142,17 @@ switched to go1.21.13
 ├── gocache/
 │   ├── 1.19.10/          <- 该版本的 GOCACHE
 │   └── 1.22.0/
-├── goroot -> versions/1.22.0    <- 当前版本的 GOROOT
 └── current/
     ├── bin   -> ../versions/1.22.0/bin
-    └── gobin -> ../gobin/1.22.0
+    ├── gobin -> ../gobin/1.22.0
+    └── goroot -> ../versions/1.22.0
 ```
 
-`GOROOT` 始终指向 `versions/<version>`，绝不会指向 `current`：`current` 目录下只有两个链接，缺少 GOROOT 必需的 `src`、`pkg`、`lib` 目录。`current` 里的链接只是给那些把 `~/.gip/current/bin` 加进 `PATH` 的人提供便利。
+`GOROOT` 始终指向 `versions/<version>`，绝不会指向 `current`：`current` 目录下只有几个链接，缺少 GOROOT 必需的 `src`、`pkg`、`lib` 目录。`current` 里的链接只是给那些把 `~/.gip/current/bin` 加进 `PATH` 的人提供便利。
 
 由 gip 执行的每一条 go 命令，都会固定所选版本的 `GOROOT`、`GOBIN`、`GOCACHE`，并把该版本的 bin 目录放到 `PATH` 前面。构建缓存按版本隔离，因为跨工具链版本共享缓存可能让产物出现难以察觉的差异。
 
-`current` 下的两个链接是一起切换的：它们先以临时名字就位，再重命名到目标位置；如果第二次重命名失败，第一次会被回滚，因此之前的版本始终保持可用。`goroot` 链接与它们一同切换。
+`current` 下的链接是一起切换的：它们先以临时名字就位，再重命名到目标位置；如果重命名失败，之前的版本会被恢复，因此始终保持可用。`goroot` 链接与它们一同切换。
 
 ## 第三方工具
 
@@ -183,13 +183,13 @@ $ gip exec gopls check ./...
 
 需要完整 GOROOT 的工具（比如 VS Code 的 Go 扩展）不能用 `current`：`current` 目录里只有 `bin` 和 `gobin` 两个链接，缺少 GOROOT 必需的 `src`、`pkg`、`lib` 目录。
 
-gip 主目录下的 `goroot` 链接指向当前版本的**完整** GOROOT：
+`current` 目录下的 `goroot` 链接指向当前版本的**完整** GOROOT：
 
 ```
-~/.gip/goroot -> versions/1.22.0
+~/.gip/current/goroot -> ../versions/1.22.0
 ```
 
-它的路径不随版本变化，所以配置里填一次就能一直用。它与当前版本一起切换。
+**它的路径不随版本变化**，所以配置里填一次就能一直用。它与当前版本一起切换。
 
 ```console
 $ gip toolchain env
@@ -198,7 +198,7 @@ CURRENT    1.22.0
 GOROOT     /home/user/.gip/versions/1.22.0
 GOBIN      /home/user/.gip/gobin/1.22.0
 GOCACHE    /home/user/.gip/gocache/1.22.0
-GOROOT_LINK /home/user/.gip/goroot
+GOROOT_LINK /home/user/.gip/current/goroot
 MIRROR     https://go.dev/dl
 ```
 

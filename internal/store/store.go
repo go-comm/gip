@@ -96,14 +96,14 @@ func (s *Store) CurrentGoBinLink() string {
 	return filepath.Join(s.CurrentDir(), "gobin")
 }
 
-// GorootLink is a link to the GOROOT of the current release.
+// GorootLink is the link to the GOROOT of the current release.
 //
-// Unlike the links in the current directory it points at a whole GOROOT,
-// with its src, pkg and lib directories, so it can be handed to tools that
-// expect a GOROOT, such as the go.goroot setting of the VS Code Go
-// extension. Its path stays the same when the release changes.
+// Unlike the other links of the current directory it points at a whole
+// GOROOT, with its src, pkg and lib directories, so it can be handed to
+// tools that expect a GOROOT, such as the go.goroot setting of the VS Code
+// Go extension. Its path stays the same when the release changes.
 func (s *Store) GorootLink() string {
-	return filepath.Join(s.Root, "goroot")
+	return filepath.Join(s.CurrentDir(), "goroot")
 }
 
 // GorootVersion returns the release the GOROOT link points at.
@@ -297,13 +297,31 @@ func (s *Store) ResolveSeries(req string) (string, bool) {
 	return best, true
 }
 
+// link is a symbolic link of the current directory.
+type link struct {
+	path   string
+	target string
+}
+
+// currentLinks returns the links of the current directory for a release.
+//
+// The targets are relative to the current directory, so that the whole gip
+// home directory can be moved.
+func (s *Store) currentLinks(v string) []link {
+	return []link{
+		{s.CurrentBinLink(), filepath.Join("..", "versions", v, "bin")},
+		{s.CurrentGoBinLink(), filepath.Join("..", "gobin", v)},
+		{s.GorootLink(), filepath.Join("..", "versions", v)},
+	}
+}
+
 // Use makes the given release the current one.
 //
-// Both the bin and the gobin link are switched, so that the compiler and the
-// tools installed next to it always come from the same release. The links
-// are staged under temporary names and then renamed into place; if the
-// second rename fails the first one is rolled back, so the previous
-// selection stays intact.
+// The bin, gobin and goroot links are switched together, so that the
+// compiler, the tools installed next to it and the GOROOT always come from
+// the same release. The links are staged under temporary names and then
+// renamed into place; if a rename fails the previous selection is restored,
+// so that it stays intact.
 func (s *Store) Use(v string) error {
 	if !version.IsValid(v) {
 		return fmt.Errorf("invalid version %q", v)
@@ -318,48 +336,45 @@ func (s *Store) Use(v string) error {
 		return err
 	}
 
-	tmpBin := s.CurrentBinLink() + ".tmp"
-	tmpGoBin := s.CurrentGoBinLink() + ".tmp"
-	tmpGoroot := s.GorootLink() + ".tmp"
-	defer os.Remove(tmpBin)
-	defer os.Remove(tmpGoBin)
-	defer os.Remove(tmpGoroot)
+	links := s.currentLinks(v)
 
-	// The GOROOT link stands on its own, so it is switched first: a
-	// failure here leaves the selection untouched.
-	if err := createLink(tmpGoroot, filepath.Join("versions", v)); err != nil {
-		return err
-	}
-	if err := replaceLink(s.GorootLink(), tmpGoroot); err != nil {
-		return err
-	}
+	// The previous selection, so that it can be restored if one of the
+	// renames fails.
+	prev, _ := s.Current()
 
-	relBin := filepath.Join("..", "versions", v, "bin")
-	relGoBin := filepath.Join("..", "gobin", v)
-
-	if err := createLink(tmpBin, relBin); err != nil {
-		return err
-	}
-	if err := createLink(tmpGoBin, relGoBin); err != nil {
-		return err
-	}
-
-	if err := replaceLink(s.CurrentBinLink(), tmpBin); err != nil {
-		return err
-	}
-	if err := replaceLink(s.CurrentGoBinLink(), tmpGoBin); err != nil {
-		// Roll the bin link back to the previous release.
-		if prev, ok := s.currentFromLink(); ok && prev != v {
-			rollback := tmpBin + ".rollback"
-			if createLink(rollback, filepath.Join("..", "versions", prev, "bin")) == nil {
-				replaceLink(s.CurrentBinLink(), rollback)
-				os.Remove(rollback)
-			}
+	// Stage the links under temporary names.
+	for _, l := range links {
+		tmp := l.path + ".tmp"
+		defer os.Remove(tmp)
+		if err := createLink(tmp, l.target); err != nil {
+			return err
 		}
-		return err
+	}
+
+	// Move them into place.
+	for _, l := range links {
+		if err := replaceLink(l.path, l.path+".tmp"); err != nil {
+			s.restoreLinks(prev)
+			return err
+		}
 	}
 
 	return s.writeMeta(v)
+}
+
+// restoreLinks points the links of the current directory back at a release.
+func (s *Store) restoreLinks(v string) {
+	if v == "" {
+		return
+	}
+	for _, l := range s.currentLinks(v) {
+		tmp := l.path + ".rollback"
+		if err := createLink(tmp, l.target); err != nil {
+			continue
+		}
+		replaceLink(l.path, tmp)
+		os.Remove(tmp)
+	}
 }
 
 // writeMeta records the current release.
