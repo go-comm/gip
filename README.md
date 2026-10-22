@@ -16,6 +16,14 @@ needs itself. That makes it usable on machines whose system Go is older than
 $ go install github.com/go-comm/gip/cmd/gip@latest
 ```
 
+Right after a release the checksum database may not know the new version
+yet, and the install fails with `invalid version: unknown revision`. The
+release itself is fine, so installing it directly works:
+
+```console
+$ GONOSUMDB=github.com/go-comm/* go install github.com/go-comm/gip/cmd/gip@v0.2.0
+```
+
 ## Usage
 
 `gip` is a drop-in replacement for `go`: every command that gip does not own
@@ -34,15 +42,18 @@ $ gip mod tidy
 
 gip owns the management of the toolchains:
 
-| Command                            | Meaning                              |
-| ---------------------------------- | ------------------------------------ |
-| `gip auto`                         | align the toolchain with the project |
-| `gip toolchain install <version>`  | download and install a release       |
-| `gip toolchain use <version>`      | make a release the current one       |
-| `gip toolchain ls`                 | list the installed releases          |
-| `gip toolchain current`            | print the current release            |
-| `gip toolchain uninstall <version>`| remove an installed release          |
-| `gip toolchain env`                | print the paths gip manages          |
+| Command                             | Meaning                              |
+| ----------------------------------- | ------------------------------------ |
+| `gip`                               | align the toolchain with the project |
+| `gip auto`                          | the same, written out                |
+| `gip exec <command> [args...]`      | run a command with the toolchain     |
+| `gip doctor`                        | check the environment for problems   |
+| `gip toolchain install <version>`   | download and install a release       |
+| `gip toolchain use <version>`       | make a release the current one       |
+| `gip toolchain ls`                  | list the installed releases          |
+| `gip toolchain current`             | print the current release            |
+| `gip toolchain uninstall <version>` | remove an installed release          |
+| `gip toolchain env`                 | print the paths gip manages          |
 
 The commands that do not clash with a go command are also available without
 the namespace: `gip use`, `gip ls`, `gip current` and `gip uninstall`.
@@ -181,11 +192,12 @@ Everything lives under `~/.gip`, or `$GIP_HOME` if it is set:
     └── goroot -> ../versions/1.22.0
 ```
 
-`GOROOT` always points at `versions/<version>`, never at `current`: the
-`current` directory only holds links and is missing the `src`, `pkg` and
-`lib` directories a GOROOT needs. The `current` links exist as a
-convenience for people who put `~/.gip/current/goroot/bin` on their
-`PATH`.
+`GOROOT` always points at `versions/<version>`, never at the `current`
+directory itself, which holds links and no `src`, `pkg` and `lib`
+directories. The `goroot` link of that directory is the exception: it
+points at a whole GOROOT and is meant for tools that need one. The links
+exist as a convenience for people who put `~/.gip/current/goroot/bin` on
+their `PATH`.
 
 Every go command that gip runs has the `GOROOT`, `GOBIN` and `GOCACHE` of
 the selected release pinned, and the bin directories of the release are put
@@ -195,8 +207,7 @@ artefacts.
 
 Both links of `current` are switched together. They are staged under
 temporary names and renamed into place, and a failure of a rename restores
-the previous selection, so it stays intact. The `goroot` link is switched
-along with them.
+the previous selection, so it stays intact.
 
 ## Third party tools
 
@@ -233,8 +244,9 @@ started afterwards works with the version the project asks for.
 ### The GOROOT link
 
 A tool that needs a GOROOT, such as the VS Code Go extension, cannot use
-`current`: that directory holds only the `bin` and `gobin` links and is
-missing the `src`, `pkg` and `lib` directories a GOROOT consists of.
+the `current` directory itself: it holds the `gobin` and `goroot` links, and
+none of them is a directory with the `src`, `pkg` and `lib` subdirectories a
+GOROOT consists of.
 
 The `goroot` link of the current directory points at a whole GOROOT of the
 current release:
@@ -340,11 +352,16 @@ The project has no dependencies outside the standard library.
 
 ### Version
 
-`gip version` reports the version from the build information: the tag of the
-repository the binary was built from, or the module version when it was
-installed with `go install github.com/go-comm/gip/cmd/gip@v0.2.0`. A build
-from a repository without a tag reports the version of the source tree with
-the commit appended, and a modified working tree adds a `+dirty` suffix.
+`gip version` reports the version from the build information:
+
+* A binary installed with `go install github.com/go-comm/gip/cmd/gip@v0.2.0`
+  reports `v0.2.0`.
+* A binary built from a repository reports the version of the commit it
+  was built from: the tag when the commit carries one, and a pseudo-version
+  such as `v0.2.1-0.20261022133637-62a53e2482f2` when the commit is after the
+  latest tag. A modified working tree adds a `+dirty` suffix.
+* `go run` carries no version information at all and reports the version of
+  the source tree, `v0.2.0`.
 
 The version can be set at build time with
 

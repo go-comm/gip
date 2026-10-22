@@ -16,9 +16,12 @@ var versionOverride = ""
 //
 // The build information carries the version when gip was installed with
 // "go install github.com/go-comm/gip/cmd/gip@v0.2.0", and when it was built
-// from a tagged repository, where the tag becomes the version and a modified
-// working tree adds a "+dirty" suffix. A build from a repository without a
-// tag still knows its commit.
+// from a repository: the tag of the commit the binary was built from, or a
+// pseudo-version when the commit is after the latest tag. A modified working
+// tree adds a "+dirty" suffix.
+//
+// A build that carries no version information at all, which is the case for
+// "go run", reports the version of the source tree.
 func buildVersion() string {
 	if versionOverride != "" {
 		return versionOverride
@@ -31,7 +34,11 @@ func buildVersion() string {
 		return v
 	}
 	if rev := buildSetting(info, "vcs.revision"); rev != "" {
-		return defaultVersion + "+" + shortRevision(rev)
+		v := defaultVersion + "+" + shortRevision(rev)
+		if buildSetting(info, "vcs.modified") == "true" {
+			v += ".dirty"
+		}
+		return v
 	}
 	return defaultVersion
 }

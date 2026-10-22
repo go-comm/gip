@@ -12,6 +12,12 @@
 $ go install github.com/go-comm/gip/cmd/gip@latest
 ```
 
+刚发版时校验库可能还不知道这个新版本，安装会报 `invalid version: unknown revision`。版本本身没问题，直接装即可：
+
+```console
+$ GONOSUMDB=github.com/go-comm/* go install github.com/go-comm/gip/cmd/gip@v0.2.0
+```
+
 ## 使用
 
 `gip` 是 `go` 的即插即用替代品：凡是不属于 gip 自己的命令，都会原样交给所选版本的 `go` 命令执行。
@@ -29,15 +35,18 @@ $ gip mod tidy
 
 gip 自己负责管理工具链：
 
-| 命令                                | 含义                     |
-| ----------------------------------- | ------------------------ |
-| `gip auto`                          | 把工具链与当前项目对齐   |
-| `gip toolchain install <version>`   | 下载并安装一个版本       |
-| `gip toolchain use <version>`       | 把某个版本设为当前版本   |
-| `gip toolchain ls`                  | 列出已安装的版本         |
-| `gip toolchain current`             | 打印当前版本             |
-| `gip toolchain uninstall <version>` | 卸载一个已安装的版本     |
-| `gip toolchain env`                 | 打印 gip 管理的路径      |
+| 命令                                 | 含义                     |
+| ------------------------------------ | ------------------------ |
+| `gip`                                | 把工具链与当前项目对齐   |
+| `gip auto`                           | 同上，完整写法           |
+| `gip exec <命令> [参数]`             | 用该工具链运行一条命令   |
+| `gip doctor`                         | 体检环境配置             |
+| `gip toolchain install <version>`    | 下载并安装一个版本       |
+| `gip toolchain use <version>`        | 把某个版本设为当前版本   |
+| `gip toolchain ls`                   | 列出已安装的版本         |
+| `gip toolchain current`              | 打印当前版本             |
+| `gip toolchain uninstall <version>`  | 卸载一个已安装的版本     |
+| `gip toolchain env`                  | 打印 gip 管理的路径      |
 
 其中不与 go 命令重名的，也可以省略命名空间直接使用：`gip use`、`gip ls`、`gip current` 和 `gip uninstall`。
 
@@ -147,11 +156,11 @@ switched to go1.21.13
     └── goroot -> ../versions/1.22.0
 ```
 
-`GOROOT` 始终指向 `versions/<version>`，绝不会指向 `current`：`current` 目录下只有几个链接，缺少 GOROOT 必需的 `src`、`pkg`、`lib` 目录。`current` 里的链接只是给那些把 `~/.gip/current/goroot/bin` 加进 `PATH` 的人提供便利。
+`GOROOT` 始终指向 `versions/<version>`，绝不会指向 `current` 目录本身——那个目录里只有链接，没有 `src`、`pkg`、`lib` 目录。例外是其中的 `goroot` 链接：它指向一个完整的 GOROOT，正是给需要 GOROOT 的工具用的。这些链接是给那些把 `~/.gip/current/goroot/bin` 加进 `PATH` 的人提供便利。
 
 由 gip 执行的每一条 go 命令，都会固定所选版本的 `GOROOT`、`GOBIN`、`GOCACHE`，并把该版本的 bin 目录放到 `PATH` 前面。构建缓存按版本隔离，因为跨工具链版本共享缓存可能让产物出现难以察觉的差异。
 
-`current` 下的链接是一起切换的：它们先以临时名字就位，再重命名到目标位置；如果重命名失败，之前的版本会被恢复，因此始终保持可用。`goroot` 链接与它们一同切换。
+`current` 下的两个链接是一起切换的：它们先以临时名字就位，再重命名到目标位置；如果重命名失败，之前的版本会被恢复，因此始终保持可用。
 
 ## 第三方工具
 
@@ -180,7 +189,7 @@ $ gip exec gopls check ./...
 
 ### GOROOT 链接
 
-需要完整 GOROOT 的工具（比如 VS Code 的 Go 扩展）不能用 `current`：`current` 目录里只有 `bin` 和 `gobin` 两个链接，缺少 GOROOT 必需的 `src`、`pkg`、`lib` 目录。
+需要完整 GOROOT 的工具（比如 VS Code 的 Go 扩展）不能用 `current` 目录本身：里面是 `gobin` 和 `goroot` 两个链接，都不是带 `src`、`pkg`、`lib` 子目录的 GOROOT 目录。
 
 `current` 目录下的 `goroot` 链接指向当前版本的**完整** GOROOT：
 
@@ -266,10 +275,12 @@ $ go test ./...
 
 ### 版本号
 
-`gip version` 从构建信息里取版本号：构建它的仓库的 tag，或者用
-`go install github.com/go-comm/gip/cmd/gip@v0.2.0` 安装时的模块版本。从没有
-tag 的仓库构建时，报的是源码树的版本号加上 commit；工作区有未提交改动时会加上
-`+dirty` 后缀。
+`gip version` 从构建信息里取版本号：
+
+* 用 `go install github.com/go-comm/gip/cmd/gip@v0.2.0` 安装的二进制报告 `v0.2.0`。
+* 从仓库构建的二进制报告它所基于的那个 commit 的版本：commit 上带 tag 就报告该 tag，
+  在最新 tag 之后则是形如 `v0.2.1-0.20261022133637-62a53e2482f2` 的伪版本。工作区有未提交改动时加上 `+dirty` 后缀。
+* `go run` 完全不带版本信息，报告的是源码树的版本号 `v0.2.0`。
 
 也可以在构建时指定：
 
