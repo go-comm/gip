@@ -27,9 +27,6 @@ import (
 	"github.com/go-comm/gip/pkg/version"
 )
 
-// version of gip itself.
-const gipVersion = "0.1.0"
-
 func main() {
 	if err := run(os.Args[1:]); err != nil {
 		if errors.Is(err, errUsage) {
@@ -473,7 +470,7 @@ func cmdToolchainEnv(global options, args []string) error {
 // cmdVersion prints the version of gip and of the release that would be
 // used.
 func cmdVersion(global options, args []string) error {
-	fmt.Println("gip version", gipVersion)
+	fmt.Println("gip version", buildVersion())
 
 	st, err := openStore()
 	if err != nil {
