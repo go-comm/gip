@@ -110,7 +110,8 @@ switched to go1.21.13
 The release the module asks for is downloaded when it is missing, the
 directories that belong to it are prepared and the current release is
 switched over to it. Since the `current` links are updated, a `go` on the
-PATH that points at `~/.gip/current/bin` is the right one afterwards.
+PATH that points at `~/.gip/current/goroot/bin` is the right one
+afterwards.
 
 Moving to a project that asks for another version and running `gip` again
 switches over, in both directions.
@@ -176,15 +177,15 @@ Everything lives under `~/.gip`, or `$GIP_HOME` if it is set:
 │   ├── 1.19.10/          <- GOCACHE of that release
 │   └── 1.22.0/
 └── current/
-    ├── bin   -> ../versions/1.22.0/bin
-    ├── gobin -> ../gobin/1.22.0
+    ├── gobin  -> ../gobin/1.22.0
     └── goroot -> ../versions/1.22.0
 ```
 
 `GOROOT` always points at `versions/<version>`, never at `current`: the
 `current` directory only holds links and is missing the `src`, `pkg` and
 `lib` directories a GOROOT needs. The `current` links exist as a
-convenience for people who put `~/.gip/current/bin` on their `PATH`.
+convenience for people who put `~/.gip/current/goroot/bin` on their
+`PATH`.
 
 Every go command that gip runs has the `GOROOT`, `GOBIN` and `GOCACHE` of
 the selected release pinned, and the bin directories of the release are put
@@ -223,7 +224,7 @@ A tool that is started without `gip exec` finds the go command in the PATH.
 Put the bin directory of the current release in front of it:
 
 ```
-~/.gip/current/bin
+~/.gip/current/goroot/bin
 ```
 
 Running `gip` in a project switches the current release, so a tool that is
@@ -254,6 +255,7 @@ GOROOT     /home/user/.gip/versions/1.22.0
 GOBIN      /home/user/.gip/gobin/1.22.0
 GOCACHE    /home/user/.gip/gocache/1.22.0
 GOROOT_LINK /home/user/.gip/current/goroot
+GO_BIN      /home/user/.gip/current/goroot/bin
 MIRROR     https://go.dev/dl
 ```
 
@@ -279,10 +281,10 @@ CURRENT    1.22.0
   would build against /usr/local/go instead of /home/user/.gip/versions/1.22.0.
   Remove it: unset GOROOT
 
-! /home/user/.gip/current/bin is not in the PATH.
+! /home/user/.gip/current/goroot/bin is not in the PATH.
   A tool that calls go would find another one.
   Add it in front of the PATH:
-    export PATH="/home/user/.gip/current/bin:$PATH"
+    export PATH="/home/user/.gip/current/goroot/bin:$PATH"
 
 2 problem(s) found.
 ```

@@ -119,13 +119,19 @@ func TestUseAndCurrent(t *testing.T) {
 		t.Errorf("Current() = %q, want 1.22.0", cur)
 	}
 
-	// The bin link has to point at the release.
-	target, err := os.Readlink(s.CurrentBinLink())
+	// The goroot link has to point at the release.
+	target, err := os.Readlink(s.GorootLink())
 	if err != nil {
 		t.Fatal(err)
 	}
 	if v, ok := versionFromPath(target); !ok || v != "1.22.0" {
-		t.Errorf("current/bin points at %q, want the 1.22.0 release", target)
+		t.Errorf("current/goroot points at %q, want the 1.22.0 release", target)
+	}
+
+	// There is no separate bin link any more, the go command is reached
+	// through the goroot link.
+	if _, err := os.Lstat(filepath.Join(s.CurrentDir(), "bin")); err == nil {
+		t.Error("the current directory still holds a bin link")
 	}
 
 	// Switching again replaces both links.

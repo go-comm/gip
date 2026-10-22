@@ -86,11 +86,6 @@ func (s *Store) GoCacheDir(v string) string {
 // CurrentDir is the directory holding the "current" links.
 func (s *Store) CurrentDir() string { return filepath.Join(s.Root, "current") }
 
-// CurrentBinLink is the link to the bin directory of the current release.
-func (s *Store) CurrentBinLink() string {
-	return filepath.Join(s.CurrentDir(), "bin")
-}
-
 // CurrentGoBinLink is the link to the gobin directory of the current release.
 func (s *Store) CurrentGoBinLink() string {
 	return filepath.Join(s.CurrentDir(), "gobin")
@@ -98,12 +93,19 @@ func (s *Store) CurrentGoBinLink() string {
 
 // GorootLink is the link to the GOROOT of the current release.
 //
-// Unlike the other links of the current directory it points at a whole
-// GOROOT, with its src, pkg and lib directories, so it can be handed to
-// tools that expect a GOROOT, such as the go.goroot setting of the VS Code
-// Go extension. Its path stays the same when the release changes.
+// It points at a whole GOROOT, with its src, pkg and lib directories, so it
+// can be handed to tools that expect a GOROOT, such as the go.goroot setting
+// of the VS Code Go extension. Its path stays the same when the release
+// changes, and its bin directory holds the go command.
 func (s *Store) GorootLink() string {
 	return filepath.Join(s.CurrentDir(), "goroot")
+}
+
+// GorootBinDir is the directory with the go command of the current release.
+//
+// It is the directory to put in front of the PATH.
+func (s *Store) GorootBinDir() string {
+	return filepath.Join(s.GorootLink(), "bin")
 }
 
 // GorootVersion returns the release the GOROOT link points at.
@@ -203,9 +205,9 @@ func (s *Store) Current() (string, error) {
 }
 
 // currentFromLink derives the current version from the target of the
-// current/bin link.
+// goroot link.
 func (s *Store) currentFromLink() (string, bool) {
-	target, err := os.Readlink(s.CurrentBinLink())
+	target, err := os.Readlink(s.GorootLink())
 	if err != nil {
 		return "", false
 	}
@@ -309,7 +311,6 @@ type link struct {
 // home directory can be moved.
 func (s *Store) currentLinks(v string) []link {
 	return []link{
-		{s.CurrentBinLink(), filepath.Join("..", "versions", v, "bin")},
 		{s.CurrentGoBinLink(), filepath.Join("..", "gobin", v)},
 		{s.GorootLink(), filepath.Join("..", "versions", v)},
 	}

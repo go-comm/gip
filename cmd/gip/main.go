@@ -465,6 +465,7 @@ func cmdToolchainEnv(global options, args []string) error {
 		fmt.Printf("GOCACHE   %s\n", st.GoCacheDir(cur))
 	}
 	fmt.Printf("GOROOT_LINK %s\n", st.GorootLink())
+	fmt.Printf("GO_BIN      %s\n", st.GorootBinDir())
 	fmt.Printf("MIRROR    %s\n", mirrorOf(global))
 	return nil
 }
@@ -557,7 +558,7 @@ func cmdDoctor(global options, args []string) error {
 
 	// The bin directory of the current release has to come first in the PATH
 	// for a tool that calls go to find the right one.
-	currentBin := st.CurrentBinLink()
+	currentBin := st.GorootBinDir()
 	if !onPath(currentBin) {
 		problems++
 		fmt.Printf("\n! %s is not in the PATH.\n", currentBin)

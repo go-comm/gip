@@ -92,7 +92,7 @@ switched to go1.21.13
 /home/user/code/myproject/go.mod asks for go1.21.0
 ```
 
-模块要求的版本若尚未安装会被下载，其专属目录会被准备好，当前版本也会切换过去。由于 `current` 下的链接同时被更新，之后 PATH 上指向 `~/.gip/current/bin` 的 `go` 就是正确的那个。
+模块要求的版本若尚未安装会被下载，其专属目录会被准备好，当前版本也会切换过去。由于 `current` 下的链接同时被更新，之后 PATH 上指向 `~/.gip/current/goroot/bin` 的 `go` 就是正确的那个。
 
 切换到要求另一个版本的项目再执行一次 `gip`，即可切换过去，两个方向都支持。
 
@@ -143,12 +143,11 @@ switched to go1.21.13
 │   ├── 1.19.10/          <- 该版本的 GOCACHE
 │   └── 1.22.0/
 └── current/
-    ├── bin   -> ../versions/1.22.0/bin
-    ├── gobin -> ../gobin/1.22.0
+    ├── gobin  -> ../gobin/1.22.0
     └── goroot -> ../versions/1.22.0
 ```
 
-`GOROOT` 始终指向 `versions/<version>`，绝不会指向 `current`：`current` 目录下只有几个链接，缺少 GOROOT 必需的 `src`、`pkg`、`lib` 目录。`current` 里的链接只是给那些把 `~/.gip/current/bin` 加进 `PATH` 的人提供便利。
+`GOROOT` 始终指向 `versions/<version>`，绝不会指向 `current`：`current` 目录下只有几个链接，缺少 GOROOT 必需的 `src`、`pkg`、`lib` 目录。`current` 里的链接只是给那些把 `~/.gip/current/goroot/bin` 加进 `PATH` 的人提供便利。
 
 由 gip 执行的每一条 go 命令，都会固定所选版本的 `GOROOT`、`GOBIN`、`GOCACHE`，并把该版本的 bin 目录放到 `PATH` 前面。构建缓存按版本隔离，因为跨工具链版本共享缓存可能让产物出现难以察觉的差异。
 
@@ -174,7 +173,7 @@ $ gip exec gopls check ./...
 不经 `gip exec` 启动的工具会在 PATH 中找 go 命令。把当前版本的 bin 目录放在 PATH 最前面：
 
 ```
-~/.gip/current/bin
+~/.gip/current/goroot/bin
 ```
 
 在项目里执行 `gip` 会切换当前版本，之后启动的工具就会使用该项目要求的版本。
@@ -199,6 +198,7 @@ GOROOT     /home/user/.gip/versions/1.22.0
 GOBIN      /home/user/.gip/gobin/1.22.0
 GOCACHE    /home/user/.gip/gocache/1.22.0
 GOROOT_LINK /home/user/.gip/current/goroot
+GO_BIN      /home/user/.gip/current/goroot/bin
 MIRROR     https://go.dev/dl
 ```
 
@@ -220,10 +220,10 @@ CURRENT    1.22.0
   would build against /usr/local/go instead of /home/user/.gip/versions/1.22.0.
   Remove it: unset GOROOT
 
-! /home/user/.gip/current/bin is not in the PATH.
+! /home/user/.gip/current/goroot/bin is not in the PATH.
   A tool that calls go would find another one.
   Add it in front of the PATH:
-    export PATH="/home/user/.gip/current/bin:$PATH"
+    export PATH="/home/user/.gip/current/goroot/bin:$PATH"
 
 2 problem(s) found.
 ```
