@@ -232,24 +232,25 @@ func TestResolveReleaseInvalidVersion(t *testing.T) {
 	}
 }
 
-func TestLooksLikeToolchainVersion(t *testing.T) {
-	tests := []struct {
-		in   string
-		want bool
-	}{
-		{"1.22.0", true},
-		{"1.22", true},
-		{"go1.22.0", true},
-		{"1.21rc1", true},
-		{"1", false},
-		{"golang.org/x/tools/cmd/stringer@latest", false},
-		{"stringer", false},
-		{"v1.2.3", false},
-		{"", false},
+// TestNoCommandClash makes sure that no command of gip has the name of a go
+// command, so that "gip <command>" always means the same as
+// "go <command>".
+func TestNoCommandClash(t *testing.T) {
+	// The commands of the go command.
+	goCommands := []string{
+		"build", "clean", "doc", "env", "fix", "fmt", "generate", "get",
+		"install", "list", "mod", "run", "test", "tool", "version", "vet",
+		"work", "bug", "telemetry", "help",
 	}
-	for _, tt := range tests {
-		if got := looksLikeToolchainVersion(tt.in); got != tt.want {
-			t.Errorf("looksLikeToolchainVersion(%q) = %v, want %v", tt.in, got, tt.want)
+	// The commands that gip handles itself.
+	gipCommands := []string{
+		"auto", "exec", "doctor", "toolchain", "use", "ls", "current", "uninstall",
+	}
+	for _, g := range gipCommands {
+		for _, c := range goCommands {
+			if g == c {
+				t.Errorf("the command %q exists in the go command as well", g)
+			}
 		}
 	}
 }

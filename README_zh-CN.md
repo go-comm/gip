@@ -50,14 +50,15 @@ gip 自己负责管理工具链：
 
 其中不与 go 命令重名的，也可以省略命名空间直接使用：`gip use`、`gip ls`、`gip current` 和 `gip uninstall`。
 
-`gip ls --all` 还会列出可以安装的版本。
+`gip ls --all` 还会列出可以安装的版本。gip 自身的版本用 `gip --version` 打印。
 
-有两个名字同时属于两边，靠参数来区分：
+gip 自己的命令里没有和 go 命令同名的：`gip version` 就是 `go version`，`gip env` 就是 `go env`，`gip install` 就是 `go install`，用的都是所选版本。gip 自身的版本用 `gip --version` 打印，gip 管理的路径用 `gip toolchain env` 打印。
 
-* `gip install` 的参数是版本号时安装工具链，否则执行 `go install`。因此 `gip install 1.22.0` 安装一个版本，而 `gip install golang.org/x/tools/cmd/stringer@latest` 安装一个包。
-* `gip env` 不带参数时打印 gip 管理的路径，带参数时执行 `go env`。因此 `gip env GOROOT` 会报告所选版本的 GOROOT。
+安装一个版本用 `gip toolchain install <version>`：
 
-`gip version` 先打印 gip 自身的版本，再打印当前会使用的版本。
+```console
+$ gip toolchain install 1.22.0
+```
 
 其余命令都属于 go 命令，会被原样转发：
 
@@ -221,6 +222,7 @@ MIRROR     https://go.dev/dl
 
 ```console
 $ gip doctor
+gip version v0.2.0
 GIP_HOME   /home/user/.gip
 CURRENT    1.22.0
 
@@ -275,7 +277,7 @@ $ go test ./...
 
 ### 版本号
 
-`gip version` 从构建信息里取版本号：
+`gip --version` 从构建信息里取版本号：
 
 * 用 `go install github.com/go-comm/gip/cmd/gip@v0.2.0` 安装的二进制报告 `v0.2.0`。
 * 从仓库构建的二进制报告它所基于的那个 commit 的版本：commit 上带 tag 就报告该 tag，

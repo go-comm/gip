@@ -58,19 +58,19 @@ gip owns the management of the toolchains:
 The commands that do not clash with a go command are also available without
 the namespace: `gip use`, `gip ls`, `gip current` and `gip uninstall`.
 
-`gip ls --all` also lists the releases that can be installed.
+`gip ls --all` also lists the releases that can be installed. The version of gip
+itself is printed with `gip --version`.
 
-Two names belong to both worlds and are told apart by their arguments:
+A release is installed with `gip toolchain install <version>`:
 
-* `gip install` installs a toolchain when it is given a version and runs
-  `go install` otherwise, so `gip install 1.22.0` installs a release while
-  `gip install golang.org/x/tools/cmd/stringer@latest` installs a package.
-* `gip env` prints the paths gip manages when it is called without arguments
-  and runs `go env` otherwise, so `gip env GOROOT` reports the GOROOT of the
-  selected release.
+```console
+$ gip toolchain install 1.22.0
+```
 
-`gip version` prints the version of gip followed by the version of the
-release that would be used.
+No command of gip has the name of a go command. `gip version` is `go version`
+and `gip env` is `go env`, both of the selected release, and `gip install` is
+`go install`. The version of gip itself is printed with `gip --version`, the
+paths gip manages with `gip toolchain env`.
 
 Everything else belongs to the go command and is passed on unchanged:
 
@@ -285,6 +285,7 @@ a status of 1 when it finds any, which makes it usable in a script:
 
 ```console
 $ gip doctor
+gip version v0.2.0
 GIP_HOME   /home/user/.gip
 CURRENT    1.22.0
 
@@ -352,7 +353,7 @@ The project has no dependencies outside the standard library.
 
 ### Version
 
-`gip version` reports the version from the build information:
+`gip --version` reports the version from the build information:
 
 * A binary installed with `go install github.com/go-comm/gip/cmd/gip@v0.2.0`
   reports `v0.2.0`.

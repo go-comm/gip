@@ -92,23 +92,18 @@ func run(args []string) error {
 	case "uninstall", "remove":
 		return cmdToolchainUninstall(global, rest)
 
-	case "install":
-		// "install" belongs to both worlds: a version installs a toolchain,
-		// anything else is a package for "go install".
-		if len(rest) == 1 && looksLikeToolchainVersion(rest[0]) {
-			return cmdToolchainInstall(global, rest)
-		}
-		return cmdGo(global, append([]string{"install"}, rest...))
+	case "--version":
+		// The version of gip itself. It is a flag and not a command, so
+		// that the "version" command stays the one of the go command.
+		fmt.Println("gip version", buildVersion())
+		return nil
 
-	case "version", "--version":
-		return cmdVersion(global, rest)
+	case "version":
+		// The version of the selected release, asked of the go command.
+		return cmdGo(global, append([]string{"version"}, rest...))
 
 	case "env":
-		// Without arguments gip reports its own paths, with arguments the
-		// query is answered by the go command.
-		if len(rest) == 0 {
-			return cmdToolchainEnv(global, rest)
-		}
+		// The environment of the selected release.
 		return cmdGo(global, append([]string{"env"}, rest...))
 
 	case "help", "-h", "--help":
@@ -137,7 +132,8 @@ when it is missing and the current release is switched over to it.
 
 Every command that gip does not own is handed over to the go command of the
 selected release, so "gip test ./..." runs "go test ./..." with the toolchain
-the module asks for.
+the module asks for. No command of gip has the name of a go command, so
+"gip version" is "go version" and "gip env" is "go env".
 
 Commands of gip:
   auto                     Align the toolchain with the current directory
@@ -157,16 +153,12 @@ do not clash with a go command:
   ls                  List: gip toolchain ls
   current             List: gip toolchain current
   uninstall <version> List: gip toolchain uninstall
-  install <version>   List: gip toolchain install
-
-"gip install" installs a toolchain when it is given a version and runs
-"go install" otherwise, so "gip install golang.org/x/tools/cmd/stringer@latest"
-installs a package while "gip install 1.22.0" installs a release.
 
 Flags of gip:
   -go, --go <version>  Use this release instead of the one the module asks for
   -no-download         Fail instead of downloading a missing release
   -mirror <url>        Download site to use (default `+downloader.DefaultMirror+`)
+  --version            Print the version of gip itself
 
 A flag may be written with one or with two dashes, so "gip -go=1.20 run ."
 and "gip --go 1.20 run ." mean the same.
@@ -253,18 +245,6 @@ func flagName(arg string) (name, value string, hasValue bool) {
 	return body, "", false
 }
 
-// looksLikeToolchainVersion reports whether s names a Go release rather than
-// a package.
-func looksLikeToolchainVersion(s string) bool {
-	s = version.TrimGo(strings.TrimSpace(s))
-	if !strings.Contains(s, ".") {
-		// A version always carries at least a minor number, so "1" is a
-		// package name.
-		return false
-	}
-	return version.IsValid(s)
-}
-
 // openStore returns the store to work on.
 func openStore() (*store.Store, error) {
 	return store.Default()
@@ -290,10 +270,6 @@ func cmdToolchain(global options, args []string) error {
 		return cmdToolchainUninstall(global, rest)
 	case "env":
 		return cmdToolchainEnv(global, rest)
-	case "doctor":
-		return cmdDoctor(global, rest)
-	case "version":
-		return cmdVersion(global, rest)
 	default:
 		usage()
 		return fmt.Errorf("unknown toolchain command %q", sub)
@@ -467,28 +443,6 @@ func cmdToolchainEnv(global options, args []string) error {
 	return nil
 }
 
-// cmdVersion prints the version of gip and of the release that would be
-// used.
-func cmdVersion(global options, args []string) error {
-	fmt.Println("gip version", buildVersion())
-
-	st, err := openStore()
-	if err != nil {
-		return nil
-	}
-	release, err := resolveRelease(st, global, false)
-	if err != nil || release == "" {
-		return nil
-	}
-	runner := newRunner(st, release)
-	out, err := runner.Output([]string{"version"})
-	if err != nil {
-		return nil
-	}
-	fmt.Print(string(out))
-	return nil
-}
-
 // cmdExec runs a command with the environment of the selected release.
 //
 // Third party tools that drive the go command themselves find the go command
@@ -521,6 +475,7 @@ func cmdDoctor(global options, args []string) error {
 		return err
 	}
 	cur, _ := st.Current()
+	fmt.Printf("gip version %s\n", buildVersion())
 	fmt.Printf("GIP_HOME   %s\n", st.Root)
 	fmt.Printf("CURRENT    %s\n", cur)
 
