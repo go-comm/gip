@@ -1,0 +1,3 @@
+# Normalise line endings in the repository, and let the working tree follow
+# the core.autocrlf setting of each platform.
+* text=auto

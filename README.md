@@ -1,0 +1,241 @@
+# gip
+
+English | [简体中文](README_zh-CN.md)
+
+`gip` manages Go toolchains. It installs Go releases side by side and runs
+the `go` command of the release a module asks for.
+
+Unlike the `GOTOOLCHAIN` mechanism of Go 1.21 and later, `gip` does not need
+a recent Go toolchain to be installed already: it downloads the release it
+needs itself. That makes it usable on machines whose system Go is older than
+1.21, and it keeps the toolchain selection under the control of the user.
+
+## Install
+
+```console
+$ go install github.com/go-comm/gip/cmd/gip@latest
+```
+
+## Usage
+
+`gip` is a drop-in replacement for `go`: every command that gip does not own
+is handed over to the `go` command of the selected release.
+
+```console
+$ gip install 1.22.0        # download and install a release
+$ gip use 1.22.0            # make it the current one
+$ gip ls                    # list the installed releases
+$ gip test ./...            # go test ./... with the right toolchain
+$ gip build -o bin/app ./cmd/...
+$ gip mod tidy
+```
+
+### Commands of gip
+
+gip owns the management of the toolchains:
+
+| Command                            | Meaning                              |
+| ---------------------------------- | ------------------------------------ |
+| `gip auto`                         | align the toolchain with the project |
+| `gip toolchain install <version>`  | download and install a release       |
+| `gip toolchain use <version>`      | make a release the current one       |
+| `gip toolchain ls`                 | list the installed releases          |
+| `gip toolchain current`            | print the current release            |
+| `gip toolchain uninstall <version>`| remove an installed release          |
+| `gip toolchain env`                | print the paths gip manages          |
+
+The commands that do not clash with a go command are also available without
+the namespace: `gip use`, `gip ls`, `gip current` and `gip uninstall`.
+
+`gip ls --all` also lists the releases that can be installed.
+
+Two names belong to both worlds and are told apart by their arguments:
+
+* `gip install` installs a toolchain when it is given a version and runs
+  `go install` otherwise, so `gip install 1.22.0` installs a release while
+  `gip install golang.org/x/tools/cmd/stringer@latest` installs a package.
+* `gip env` prints the paths gip manages when it is called without arguments
+  and runs `go env` otherwise, so `gip env GOROOT` reports the GOROOT of the
+  selected release.
+
+`gip version` prints the version of gip followed by the version of the
+release that would be used.
+
+Everything else belongs to the go command and is passed on unchanged:
+
+```console
+$ gip test ./...
+$ gip vet ./...
+$ gip fmt ./...
+$ gip mod tidy
+$ gip get ./...
+$ gip run ./cmd/app
+$ gip doc fmt
+$ gip help build
+```
+
+The flags of gip are recognised anywhere on the command line, the flags of
+the go command are left alone and reach it unchanged.
+
+A flag may be written with one or with two dashes, the way the flag package
+of the go command allows it:
+
+```console
+$ gip -go=1.20 run ./cmd/app
+$ gip --go=1.20 run ./cmd/app
+$ gip -go 1.20 run ./cmd/app
+```
+
+Note that Windows PowerShell 5.1 splits an argument that contains an equals
+sign, so `-go=1.20` has to be quoted there:
+
+```console
+> gip "-go=1.20" run ./cmd/app
+```
+
+PowerShell 7 and the other shells pass it through unchanged.
+
+### Aligning with a project
+
+Without a command, or with `gip auto`, gip looks at the `go.mod` or `go.work`
+file of the current directory and aligns the toolchain with it:
+
+```console
+$ cd ~/code/myproject
+$ gip
+switched to go1.21.13
+/home/user/code/myproject/go.mod asks for go1.21.0
+```
+
+The release the module asks for is downloaded when it is missing, the
+directories that belong to it are prepared and the current release is
+switched over to it. Since the `current` links are updated, a `go` on the
+PATH that points at `~/.gip/current/bin` is the right one afterwards.
+
+Moving to a project that asks for another version and running `gip` again
+switches over, in both directions.
+
+### Selecting a release
+
+The release is chosen in this order:
+
+1. An explicit `--go <version>` flag wins over everything else and selects
+   exactly that release.
+2. The `go.work` file of the enclosing directory takes precedence over the
+   `go.mod` file.
+3. Inside one file the `toolchain` directive takes precedence over the `go`
+   directive, unless it names an older release.
+4. The `toolchain` directive names one exact release, while the `go`
+   directive states a *minimum*: any release of the same series that is not
+   older satisfies it.
+5. A `toolchain default` directive means "use the default release", so the
+   `go` directive is ignored and no download is triggered.
+
+The current release takes no part in the choice: a module that asks for an
+older toolchain gets one, even when a newer release is selected. `gip use`
+only decides what happens when a module does not ask for anything.
+
+If the selected release is not installed, `gip` downloads it. Use
+`--no-download` to fail instead, which is useful in CI.
+
+When there is no `go.mod` or `go.work` file at all, and no release has been
+selected with `gip use`, the newest installed release is used.
+
+### Versions
+
+Versions are written without the `go` prefix, for example `1.22.0`.
+
+* A full version such as `1.22.0` selects exactly that release.
+* A version without a patch number such as `1.22` selects the newest release
+  of that series, so `gip install 1.22` installs the latest 1.22.x.
+
+The rules that decide which release satisfies a requirement follow the Go
+standard library:
+
+```
+1.21 < 1.21rc1 < 1.21.0
+```
+
+The language version `1.21` sorts *below* both the release candidate and the
+release, and before Go 1.21 a missing patch number meant `0`, so `1.20` and
+`1.20.0` are the same version.
+
+## Directory layout
+
+Everything lives under `~/.gip`, or `$GIP_HOME` if it is set:
+
+```
+~/.gip/
+├── versions/
+│   ├── 1.19.10/          <- GOROOT of that release
+│   └── 1.22.0/
+├── gobin/
+│   ├── 1.19.10/          <- GOBIN of that release
+│   └── 1.22.0/
+├── gocache/
+│   ├── 1.19.10/          <- GOCACHE of that release
+│   └── 1.22.0/
+└── current/
+    ├── bin   -> ../versions/1.22.0/bin
+    └── gobin -> ../gobin/1.22.0
+```
+
+`GOROOT` always points at `versions/<version>`, never at `current`: the
+`current` directory only holds the two links and is missing the `src`, `pkg`
+and `lib` directories a GOROOT needs. The `current` links exist as a
+convenience for people who put `~/.gip/current/bin` on their `PATH`.
+
+Every go command that gip runs has the `GOROOT`, `GOBIN` and `GOCACHE` of
+the selected release pinned, and the bin directories of the release are put
+in front of `PATH`. The build cache is kept per release because sharing it
+across toolchain versions can lead to subtle differences in the produced
+artefacts.
+
+Both links of `current` are switched together. They are staged under
+temporary names and renamed into place, and a failure of the second rename
+rolls the first one back, so the previous selection stays intact.
+
+## Environment variables
+
+| Variable    | Meaning                                                      |
+| ----------- | ------------------------------------------------------------ |
+| `GIP_HOME`  | Directory holding the installs, `~/.gip` by default          |
+| `GIP_MIRROR` | Download site, `https://go.dev/dl` by default               |
+| `GOWORK`    | Honoured while looking for the `go.work` file                |
+
+A mirror has to serve the same manifest format, for example
+`https://golang.google.cn/dl`:
+
+```console
+$ GIP_MIRROR=https://golang.google.cn/dl gip install 1.22.0
+```
+
+## Downloads
+
+Releases are taken from the official manifest at
+`https://go.dev/dl/?mode=json&include=all`, which carries the SHA-256
+checksum of every archive. The archive is downloaded to a temporary file,
+verified against that checksum and only then unpacked, so an interrupted
+download never leaves a broken installation behind. The unpacking happens in
+a temporary directory that is renamed into place afterwards.
+
+Two terminals asking for the same missing release at the same time are
+serialized with a lock file, so the release is downloaded only once.
+
+## Platform notes
+
+On Unix the archives are `.tar.gz` files, on Windows they are `.zip` files;
+the downloader picks the right one from the manifest.
+
+Creating a symbolic link on Windows needs a privilege that is not granted by
+default, so `gip` falls back to a directory junction there. A junction
+stores an absolute path, which is the only difference from the layout shown
+above.
+
+## Development
+
+```console
+$ go test ./...
+```
+
+The project has no dependencies outside the standard library.

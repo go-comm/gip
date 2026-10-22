@@ -1,0 +1,188 @@
+# gip
+
+[English](README.md) | 简体中文
+
+`gip` 用于管理 Go 工具链。它把多个 Go 版本并行安装到本地，并运行模块所要求的那个版本对应的 `go` 命令。
+
+与 Go 1.21 引入的 `GOTOOLCHAIN` 机制不同，`gip` 不要求机器上已经装有较新的 Go 工具链：它自己下载所需要的版本。因此它可以在系统 Go 早于 1.21 的机器上工作，同时把工具链的选择权完全交给用户。
+
+## 安装
+
+```console
+$ go install github.com/go-comm/gip/cmd/gip@latest
+```
+
+## 使用
+
+`gip` 是 `go` 的即插即用替代品：凡是不属于 gip 自己的命令，都会原样交给所选版本的 `go` 命令执行。
+
+```console
+$ gip install 1.22.0        # 下载并安装一个版本
+$ gip use 1.22.0            # 把它设为当前版本
+$ gip ls                    # 列出已安装的版本
+$ gip test ./...            # 用正确的工具链执行 go test ./...
+$ gip build -o bin/app ./cmd/...
+$ gip mod tidy
+```
+
+### gip 自己的命令
+
+gip 自己负责管理工具链：
+
+| 命令                                | 含义                     |
+| ----------------------------------- | ------------------------ |
+| `gip auto`                          | 把工具链与当前项目对齐   |
+| `gip toolchain install <version>`   | 下载并安装一个版本       |
+| `gip toolchain use <version>`       | 把某个版本设为当前版本   |
+| `gip toolchain ls`                  | 列出已安装的版本         |
+| `gip toolchain current`             | 打印当前版本             |
+| `gip toolchain uninstall <version>` | 卸载一个已安装的版本     |
+| `gip toolchain env`                 | 打印 gip 管理的路径      |
+
+其中不与 go 命令重名的，也可以省略命名空间直接使用：`gip use`、`gip ls`、`gip current` 和 `gip uninstall`。
+
+`gip ls --all` 还会列出可以安装的版本。
+
+有两个名字同时属于两边，靠参数来区分：
+
+* `gip install` 的参数是版本号时安装工具链，否则执行 `go install`。因此 `gip install 1.22.0` 安装一个版本，而 `gip install golang.org/x/tools/cmd/stringer@latest` 安装一个包。
+* `gip env` 不带参数时打印 gip 管理的路径，带参数时执行 `go env`。因此 `gip env GOROOT` 会报告所选版本的 GOROOT。
+
+`gip version` 先打印 gip 自身的版本，再打印当前会使用的版本。
+
+其余命令都属于 go 命令，会被原样转发：
+
+```console
+$ gip test ./...
+$ gip vet ./...
+$ gip fmt ./...
+$ gip mod tidy
+$ gip get ./...
+$ gip run ./cmd/app
+$ gip doc fmt
+$ gip help build
+```
+
+gip 自己的参数可以在命令行任意位置出现；go 命令的参数则原样保留并传递给 go。
+
+参数可以写成单横线或双横线，这一点与 go 命令的 flag 包一致：
+
+```console
+$ gip -go=1.20 run ./cmd/app
+$ gip --go=1.20 run ./cmd/app
+$ gip -go 1.20 run ./cmd/app
+```
+
+需要注意的是，Windows PowerShell 5.1 会把带等号的参数拆开，因此在该版本中必须加引号：
+
+```console
+> gip "-go=1.20" run ./cmd/app
+```
+
+PowerShell 7 以及其他 shell 会原样传递。
+
+### 与项目对齐
+
+不带命令，或者使用 `gip auto` 时，gip 会查看当前目录的 `go.mod` 或 `go.work` 文件，并把工具链与之对齐：
+
+```console
+$ cd ~/code/myproject
+$ gip
+switched to go1.21.13
+/home/user/code/myproject/go.mod asks for go1.21.0
+```
+
+模块要求的版本若尚未安装会被下载，其专属目录会被准备好，当前版本也会切换过去。由于 `current` 下的链接同时被更新，之后 PATH 上指向 `~/.gip/current/bin` 的 `go` 就是正确的那个。
+
+切换到要求另一个版本的项目再执行一次 `gip`，即可切换过去，两个方向都支持。
+
+### 如何选择版本
+
+版本按以下顺序确定：
+
+1. 显式的 `--go <version>` 参数优先级最高，精确选中该版本。
+2. 当前目录及其父目录中的 `go.work` 文件优先于 `go.mod` 文件。
+3. 在同一个文件内，`toolchain` 指令优先于 `go` 指令，除非它指定的是更旧的版本。
+4. `toolchain` 指令指定的是某一个确切的版本，而 `go` 指令表示的是*最低*要求：同一系列中不低于它的版本都满足要求。
+5. `toolchain default` 表示"使用默认版本"，此时忽略 `go` 指令，也不会触发下载。
+
+当前版本不参与这个选择：模块要求更旧的工具链就会得到更旧的版本，即使当前选中的是更新的版本。`gip use` 只决定在模块没有提出要求时使用哪个版本。
+
+如果选中的版本尚未安装，`gip` 会自动下载。也可以加上 `--no-download` 让它在缺失时直接报错，这在 CI 中很有用。
+
+如果既没有 `go.mod` 也没有 `go.work`，并且没有用 `gip use` 选定过版本，则使用已安装的最新版本。
+
+### 版本号写法
+
+版本号不写 `go` 前缀，例如 `1.22.0`。
+
+* 完整版本号（如 `1.22.0`）精确选中该版本。
+* 不带补丁号的版本号（如 `1.22`）选中该系列中最新的版本，因此 `gip install 1.22` 会安装最新的 1.22.x。
+
+判断哪个版本满足要求的规则与 Go 标准库保持一致：
+
+```
+1.21 < 1.21rc1 < 1.21.0
+```
+
+语言版本 `1.21` 排在候选版和正式版*之下*；而在 Go 1.21 之前缺少补丁号等同于 `0`，所以 `1.20` 与 `1.20.0` 是同一个版本。
+
+## 目录结构
+
+所有文件都在 `~/.gip` 下；如果设置了 `$GIP_HOME`，则以它为准：
+
+```
+~/.gip/
+├── versions/
+│   ├── 1.19.10/          <- 该版本的 GOROOT
+│   └── 1.22.0/
+├── gobin/
+│   ├── 1.19.10/          <- 该版本的 GOBIN
+│   └── 1.22.0/
+├── gocache/
+│   ├── 1.19.10/          <- 该版本的 GOCACHE
+│   └── 1.22.0/
+└── current/
+    ├── bin   -> ../versions/1.22.0/bin
+    └── gobin -> ../gobin/1.22.0
+```
+
+`GOROOT` 始终指向 `versions/<version>`，绝不会指向 `current`：`current` 目录下只有两个链接，缺少 GOROOT 必需的 `src`、`pkg`、`lib` 目录。`current` 里的链接只是给那些把 `~/.gip/current/bin` 加进 `PATH` 的人提供便利。
+
+由 gip 执行的每一条 go 命令，都会固定所选版本的 `GOROOT`、`GOBIN`、`GOCACHE`，并把该版本的 bin 目录放到 `PATH` 前面。构建缓存按版本隔离，因为跨工具链版本共享缓存可能让产物出现难以察觉的差异。
+
+`current` 下的两个链接是一起切换的：它们先以临时名字就位，再重命名到目标位置；如果第二次重命名失败，第一次会被回滚，因此之前的版本始终保持可用。
+
+## 环境变量
+
+| 变量          | 含义                                                       |
+| ------------- | ---------------------------------------------------------- |
+| `GIP_HOME`    | 安装目录，默认为 `~/.gip`                                  |
+| `GIP_MIRROR`  | 下载站点，默认为 `https://go.dev/dl`                       |
+| `GOWORK`      | 查找 `go.work` 文件时会被遵从                               |
+
+镜像站必须提供相同的清单格式，例如 `https://golang.google.cn/dl`：
+
+```console
+$ GIP_MIRROR=https://golang.google.cn/dl gip install 1.22.0
+```
+
+## 下载
+
+版本来自官方清单 `https://go.dev/dl/?mode=json&include=all`，其中包含每个归档文件的 SHA-256 校验和。归档先下载到临时文件，校验通过之后才会解压，因此下载中断不会留下损坏的安装。解压同样在临时目录中进行，完成后再重命名到最终位置。
+
+两个终端同时请求同一个缺失的版本时，会通过锁文件串行化，因此该版本只会下载一次。
+
+## 平台说明
+
+Unix 上的归档是 `.tar.gz` 文件，Windows 上是 `.zip` 文件；下载器会根据清单自动选择。
+
+在 Windows 上创建符号链接需要默认并不授予的权限，因此 `gip` 在该平台会退回到使用目录联接（junction）。目录联接保存的是绝对路径，这是与上面目录结构唯一的差异。
+
+## 开发
+
+```console
+$ go test ./...
+```
+
+本项目除标准库外没有任何依赖。
