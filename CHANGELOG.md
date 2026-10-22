@@ -1,0 +1,92 @@
+# Changelog
+
+The notable changes of each release of gip, newest first. The version numbers
+follow [semantic versioning](https://semver.org/).
+
+## v0.4.0 - 2026-10-22
+
+### Added
+
+* `gip install <version>` downloads and installs a release. An argument that is
+  not a version still goes to `go install`, so the command keeps that meaning
+  as well: `gip install 1.22.0` installs a release, `gip install
+  golang.org/x/tools/cmd/stringer@latest` installs a package.
+* `latest` is accepted by `gip install` and by `--go`, so `gip install latest`
+  installs the newest stable release and `gip --go latest run .` runs with it.
+  A whole series keeps its meaning as well: `gip install 1.22` installs the
+  newest 1.22.x.
+* The arguments of `gip version` are handed to `go version`, so the module
+  information of a binary stays reachable with `gip version -m ./bin`.
+
+### Changed
+
+* `gip version` prints the version of gip and then runs `go version`; `gip env`
+  prints the paths gip manages and then runs `go env`. Both halves of `gip env`
+  describe the same release, and no release is downloaded to answer a question
+  about it. This replaces the split of v0.3.0, where gip's own data could only
+  be seen with `gip --version` and `gip toolchain env`; those two still print
+  it alone.
+* `gip version` says on stderr why the version of the release is missing
+  instead of leaving that line out without a word, and `gip env` fails with the
+  same explanation.
+* The paths of `gip env` and `gip toolchain env` are aligned in one column, and
+  the usage text and the README files describe the commands that gip shares
+  with the go command.
+
+### Fixed
+
+* The PATH of the caller was lost on Windows, where the variable is commonly
+  spelled `Path`. The go command then ran without it and could not start git, a
+  C compiler or any other tool, and `gip exec git` reported that git was not in
+  the PATH. The names of environment variables are compared case-insensitively
+  there now.
+* `gip install latest` failed with "cannot find the path specified" on a fresh
+  install, because the release was looked up before the directory of the store
+  had been created.
+
+## v0.3.0 - 2026-10-22
+
+### Added
+
+* The README describes how the version of a binary is determined.
+
+### Changed
+
+* `gip version` and `gip env` became the plain `go version` and `go env` of the
+  selected release, and gip's own version and paths moved to `gip --version`
+  and `gip toolchain env`. (v0.4.0 lets the two commands print both.)
+* The version of gip is derived from the build information: the tag of the
+  commit, a pseudo-version when the commit is after the latest tag, or the
+  version of the source tree when the build carries nothing, as is the case
+  for `go run`.
+
+## v0.2.0 - 2026-10-22
+
+First release.
+
+### Added
+
+* `gip` and `gip auto` align the toolchain with the `go` and `toolchain`
+  directives of the enclosing go.mod or go.work file, and download the release
+  when it is missing. The `toolchain` directive is followed exactly, the `go`
+  directive is a minimum, as in the go command.
+* Every other go command is forwarded, so `gip test ./...` runs `go test
+  ./...` with the toolchain the module asks for. `GOTOOLCHAIN` is set to
+  `local`, so the go command does not switch toolchains behind gip's back.
+* Releases are installed side by side under `~/.gip/versions`, each with its
+  own GOBIN and GOCACHE. The download is verified against the SHA-256 checksum
+  of the release manifest, and `GIP_MIRROR` selects a mirror.
+* The flags `-go`/`--go`, `-no-download` and `-mirror`, written with one or
+  with two dashes and recognised anywhere on the command line. The flags of the
+  go command are left alone.
+* `gip toolchain install|use|ls|current|uninstall|env`, and the short forms
+  `gip use`, `gip ls`, `gip current` and `gip uninstall`.
+* `gip exec` runs a command with the environment of the selected release, for
+  third party tools such as gopls and golangci-lint.
+* `gip doctor` checks GOROOT, GOTOOLCHAIN, the PATH and the links of the
+  `current` directory.
+* `~/.gip/current/goroot` is a stable link to the GOROOT of the current
+  release, for tools that need a GOROOT, such as the `go.goroot` setting of the
+  VS Code Go extension. Switching the release switches the link in one step,
+  and uninstalling the current release removes it instead of leaving it
+  dangling.

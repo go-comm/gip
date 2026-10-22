@@ -324,3 +324,7 @@ $ go test ./...
 ```console
 $ go build -ldflags "-X main.versionOverride=v1.2.3" ./cmd/gip
 ```
+
+## 变更记录
+
+每个版本的改动见 [CHANGELOG.md](CHANGELOG.md)。

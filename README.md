@@ -413,3 +413,7 @@ The version can be set at build time with
 ```console
 $ go build -ldflags "-X main.versionOverride=v1.2.3" ./cmd/gip
 ```
+
+## Changelog
+
+The changes of every release are listed in [CHANGELOG.md](CHANGELOG.md).
