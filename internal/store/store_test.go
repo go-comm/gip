@@ -19,6 +19,13 @@ func newStore(t *testing.T, versions ...string) *Store {
 		if err := os.MkdirAll(filepath.Join(dir, "bin"), 0755); err != nil {
 			t.Fatal(err)
 		}
+		// A GOROOT holds more than the bin directory.
+		if err := os.MkdirAll(filepath.Join(dir, "src"), 0755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.MkdirAll(filepath.Join(dir, "pkg"), 0755); err != nil {
+			t.Fatal(err)
+		}
 		name := "go"
 		if isWindows() {
 			name = "go.exe"
@@ -31,6 +38,33 @@ func newStore(t *testing.T, versions ...string) *Store {
 		}
 	}
 	return s
+}
+
+// TestGorootLink checks the link that points at a whole GOROOT of the
+// current release.
+func TestGorootLink(t *testing.T) {
+	s := newStore(t, "1.22.0", "1.19.10")
+
+	if err := s.Use("1.22.0"); err != nil {
+		t.Fatal(err)
+	}
+	v, ok := s.GorootVersion()
+	if !ok || v != "1.22.0" {
+		t.Errorf("GorootVersion() = %q, %v; want 1.22.0", v, ok)
+	}
+	// The link has to hold a whole GOROOT, not just the bin directory.
+	if _, err := os.Stat(filepath.Join(s.GorootLink(), "src")); err != nil {
+		t.Errorf("the GOROOT link does not hold a src directory: %v", err)
+	}
+
+	// Switching the release moves the link.
+	if err := s.Use("1.19.10"); err != nil {
+		t.Fatal(err)
+	}
+	v, ok = s.GorootVersion()
+	if !ok || v != "1.19.10" {
+		t.Errorf("GorootVersion() = %q, %v; want 1.19.10", v, ok)
+	}
 }
 
 func TestInstalled(t *testing.T) {

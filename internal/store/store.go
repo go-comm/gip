@@ -96,6 +96,25 @@ func (s *Store) CurrentGoBinLink() string {
 	return filepath.Join(s.CurrentDir(), "gobin")
 }
 
+// GorootLink is a link to the GOROOT of the current release.
+//
+// Unlike the links in the current directory it points at a whole GOROOT,
+// with its src, pkg and lib directories, so it can be handed to tools that
+// expect a GOROOT, such as the go.goroot setting of the VS Code Go
+// extension. Its path stays the same when the release changes.
+func (s *Store) GorootLink() string {
+	return filepath.Join(s.Root, "goroot")
+}
+
+// GorootVersion returns the release the GOROOT link points at.
+func (s *Store) GorootVersion() (string, bool) {
+	target, err := os.Readlink(s.GorootLink())
+	if err != nil {
+		return "", false
+	}
+	return versionFromPath(target)
+}
+
 // metaPath is the file recording which release is current.
 func (s *Store) metaPath() string { return filepath.Join(s.Root, "current.version") }
 
@@ -301,8 +320,19 @@ func (s *Store) Use(v string) error {
 
 	tmpBin := s.CurrentBinLink() + ".tmp"
 	tmpGoBin := s.CurrentGoBinLink() + ".tmp"
+	tmpGoroot := s.GorootLink() + ".tmp"
 	defer os.Remove(tmpBin)
 	defer os.Remove(tmpGoBin)
+	defer os.Remove(tmpGoroot)
+
+	// The GOROOT link stands on its own, so it is switched first: a
+	// failure here leaves the selection untouched.
+	if err := createLink(tmpGoroot, filepath.Join("versions", v)); err != nil {
+		return err
+	}
+	if err := replaceLink(s.GorootLink(), tmpGoroot); err != nil {
+		return err
+	}
 
 	relBin := filepath.Join("..", "versions", v, "bin")
 	relGoBin := filepath.Join("..", "gobin", v)
@@ -354,6 +384,7 @@ func (s *Store) Remove(v string) error {
 	}
 	if cur, err := s.Current(); err == nil && cur == v {
 		os.Remove(s.metaPath())
+		os.Remove(s.GorootLink())
 	}
 	return nil
 }

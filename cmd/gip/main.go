@@ -464,6 +464,7 @@ func cmdToolchainEnv(global options, args []string) error {
 		fmt.Printf("GOBIN     %s\n", st.GoBinDir(cur))
 		fmt.Printf("GOCACHE   %s\n", st.GoCacheDir(cur))
 	}
+	fmt.Printf("GOROOT_LINK %s\n", st.GorootLink())
 	fmt.Printf("MIRROR    %s\n", mirrorOf(global))
 	return nil
 }
@@ -569,6 +570,20 @@ func cmdDoctor(global options, args []string) error {
 		problems++
 		fmt.Printf("\n! No release is selected.\n")
 		fmt.Printf("  Run \"gip\" in a project to select the release it asks for.\n")
+	} else {
+		// The GOROOT link has to point at the current release: it is what
+		// tools like the VS Code Go extension are pointed at.
+		v, ok := st.GorootVersion()
+		switch {
+		case !ok:
+			problems++
+			fmt.Printf("\n! The GOROOT link %s is missing.\n", st.GorootLink())
+			fmt.Printf("  Run \"gip toolchain use %s\" to create it.\n", cur)
+		case v != cur:
+			problems++
+			fmt.Printf("\n! The GOROOT link %s points at go%s instead of go%s.\n", st.GorootLink(), v, cur)
+			fmt.Printf("  Run \"gip toolchain use %s\" to fix it.\n", cur)
+		}
 	}
 
 	if problems == 0 {

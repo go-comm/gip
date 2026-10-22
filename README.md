@@ -175,6 +175,7 @@ Everything lives under `~/.gip`, or `$GIP_HOME` if it is set:
 ├── gocache/
 │   ├── 1.19.10/          <- GOCACHE of that release
 │   └── 1.22.0/
+├── goroot -> versions/1.22.0    <- GOROOT of the current release
 └── current/
     ├── bin   -> ../versions/1.22.0/bin
     └── gobin -> ../gobin/1.22.0
@@ -193,7 +194,8 @@ artefacts.
 
 Both links of `current` are switched together. They are staged under
 temporary names and renamed into place, and a failure of the second rename
-rolls the first one back, so the previous selection stays intact.
+rolls the first one back, so the previous selection stays intact. The
+`goroot` link is switched along with them.
 
 ## Third party tools
 
@@ -226,6 +228,34 @@ Put the bin directory of the current release in front of it:
 
 Running `gip` in a project switches the current release, so a tool that is
 started afterwards works with the version the project asks for.
+
+### The GOROOT link
+
+A tool that needs a GOROOT, such as the VS Code Go extension, cannot use
+`current`: that directory holds only the `bin` and `gobin` links and is
+missing the `src`, `pkg` and `lib` directories a GOROOT consists of.
+
+The `goroot` link of the gip home directory points at a whole GOROOT of the
+current release:
+
+```
+~/.gip/goroot -> versions/1.22.0
+```
+
+Its path does not change when the release changes, so it can be used in a
+configuration once and for all. It is switched together with the current
+release.
+
+```console
+$ gip toolchain env
+GIP_HOME   /home/user/.gip
+CURRENT    1.22.0
+GOROOT     /home/user/.gip/versions/1.22.0
+GOBIN      /home/user/.gip/gobin/1.22.0
+GOCACHE    /home/user/.gip/gocache/1.22.0
+GOROOT_LINK /home/user/.gip/goroot
+MIRROR     https://go.dev/dl
+```
 
 ### The GOROOT in the environment
 
