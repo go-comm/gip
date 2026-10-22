@@ -153,6 +153,59 @@ switched to go1.21.13
 
 `current` 下的两个链接是一起切换的：它们先以临时名字就位，再重命名到目标位置；如果第二次重命名失败，第一次会被回滚，因此之前的版本始终保持可用。
 
+## 第三方工具
+
+lint 工具、代码生成器、IDE 插件都会自己调用 go 命令：它们在 PATH 里找 `go`，并使用它报告的 `GOROOT`。有两种方式让它们与 gip 配合。
+
+### gip exec
+
+`gip exec` 用所选版本的环境运行一条命令：
+
+```console
+$ gip exec golangci-lint run ./...
+$ gip exec gopls check ./...
+```
+
+该命令会在 PATH 中找到这个版本的 go 命令，并使用与之配套的 `GOROOT`、`GOBIN`、`GOCACHE`。此时 `GOTOOLCHAIN` 被设为 `local`，go 命令不会在你背后自行切换工具链。
+
+### 把当前版本放进 PATH
+
+不经 `gip exec` 启动的工具会在 PATH 中找 go 命令。把当前版本的 bin 目录放在 PATH 最前面：
+
+```
+~/.gip/current/bin
+```
+
+在项目里执行 `gip` 会切换当前版本，之后启动的工具就会使用该项目要求的版本。
+
+### 环境变量里的 GOROOT
+
+环境中的 `GOROOT` 会覆盖任何 go 命令的工具链，不管那个命令来自哪里。工具于是会去用另一个 Go 安装的标准库来构建。
+
+`GOTOOLCHAIN` 同理：取值不是 `local` 时，go 命令会自行挑选另一个工具链。
+
+`gip doctor` 会报告这两类问题并给出修复方法。发现问题时退出码为 1，便于在脚本中使用：
+
+```console
+$ gip doctor
+GIP_HOME   /home/user/.gip
+CURRENT    1.22.0
+
+! GOROOT is set to /usr/local/go in the environment.
+  It overrides the toolchain of every go command, so a tool
+  would build against /usr/local/go instead of /home/user/.gip/versions/1.22.0.
+  Remove it: unset GOROOT
+
+! /home/user/.gip/current/bin is not in the PATH.
+  A tool that calls go would find another one.
+  Add it in front of the PATH:
+    export PATH="/home/user/.gip/current/bin:$PATH"
+
+2 problem(s) found.
+```
+
+用 `gip install` 安装的工具会落在该版本的 GOBIN 里，即 `~/.gip/gobin/<version>`。这个目录已经在 `gip exec` 构造的 PATH 中，所以这样的工具能被直接找到。
+
 ## 环境变量
 
 | 变量          | 含义                                                       |

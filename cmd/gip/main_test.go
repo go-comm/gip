@@ -202,7 +202,7 @@ func TestResolveRelease(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(mod, "go.mod"), []byte("module m\n\ngo 1.30.0\n"), 0644); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := resolveRelease(s, options{noDownload: true}, true); err == nil {
+	if _, err := resolveRelease(s, options{noDownload: true}, false); err == nil {
 		t.Error("resolveRelease did not report the missing release")
 	} else if !strings.Contains(err.Error(), "1.30.0") {
 		t.Errorf("unexpected error: %v", err)

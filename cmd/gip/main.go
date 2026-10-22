@@ -16,6 +16,7 @@ import (
 	"fmt"
 	"os"
 	osexec "os/exec"
+	"path/filepath"
 	"strings"
 
 	"github.com/go-comm/gip/internal/downloader"
@@ -33,6 +34,10 @@ func main() {
 	if err := run(os.Args[1:]); err != nil {
 		if errors.Is(err, errUsage) {
 			os.Exit(2)
+		}
+		if errors.Is(err, errProblems) {
+			// The doctor has already explained the problems.
+			os.Exit(1)
 		}
 		var exitErr *osexec.ExitError
 		if errors.As(err, &exitErr) {
@@ -70,6 +75,12 @@ func run(args []string) error {
 	switch cmd {
 	case "auto":
 		return cmdAuto(global, rest)
+
+	case "exec":
+		return cmdExec(global, rest)
+
+	case "doctor":
+		return cmdDoctor(global, rest)
 
 	case "toolchain", "tc":
 		return cmdToolchain(global, rest)
@@ -133,6 +144,8 @@ the module asks for.
 
 Commands of gip:
   auto                     Align the toolchain with the current directory
+  exec <command> [args...] Run a command with the toolchain of the release
+  doctor                   Check the environment for problems
   toolchain install <version>   Download and install a Go release
   toolchain use <version>       Make a release the current one
   toolchain ls                  List the installed releases
@@ -280,6 +293,8 @@ func cmdToolchain(global options, args []string) error {
 		return cmdToolchainUninstall(global, rest)
 	case "env":
 		return cmdToolchainEnv(global, rest)
+	case "doctor":
+		return cmdDoctor(global, rest)
 	case "version":
 		return cmdVersion(global, rest)
 	default:
@@ -475,6 +490,124 @@ func cmdVersion(global options, args []string) error {
 	return nil
 }
 
+// cmdExec runs a command with the environment of the selected release.
+//
+// Third party tools that drive the go command themselves find the go command
+// of the release in the PATH and work with the GOROOT, GOBIN and GOCACHE
+// that belong to it.
+func cmdExec(global options, args []string) error {
+	if len(args) == 0 {
+		usage()
+		return fmt.Errorf("exec needs a command to run")
+	}
+	st, err := openStore()
+	if err != nil {
+		return err
+	}
+	release, err := resolveRelease(st, global, true)
+	if err != nil {
+		return err
+	}
+	runner := newRunner(st, release)
+	return runner.RunCommand(args[0], args[1:], os.Stdin, os.Stdout, os.Stderr)
+}
+
+// cmdDoctor reports how well the environment is set up for gip.
+//
+// It looks for the things that keep a third party tool from using the
+// toolchain that gip selected.
+func cmdDoctor(global options, args []string) error {
+	st, err := openStore()
+	if err != nil {
+		return err
+	}
+	cur, _ := st.Current()
+	fmt.Printf("GIP_HOME   %s\n", st.Root)
+	fmt.Printf("CURRENT    %s\n", cur)
+
+	var problems int
+
+	// A GOROOT in the environment overrides the toolchain of the go command
+	// that is found, so the two can get out of sync.
+	if root := os.Getenv("GOROOT"); root != "" {
+		want := ""
+		if cur != "" {
+			want = st.VersionDir(cur)
+		}
+		if want != "" && !sameDir(root, want) {
+			problems++
+			fmt.Printf("\n! GOROOT is set to %s in the environment.\n", root)
+			fmt.Printf("  It overrides the toolchain of every go command, so a tool\n")
+			fmt.Printf("  would build against %s instead of %s.\n", root, want)
+			fmt.Printf("  Remove it: setx GOROOT \"\"\n")
+		} else {
+			fmt.Printf("\n  GOROOT is set to %s\n", root)
+		}
+	}
+
+	// A toolchain switch of the go command would take the version selection
+	// away from gip.
+	if tc := os.Getenv("GOTOOLCHAIN"); tc != "" && tc != "local" {
+		problems++
+		fmt.Printf("\n! GOTOOLCHAIN is set to %q in the environment.\n", tc)
+		fmt.Printf("  The go command would switch to another toolchain on its own.\n")
+		fmt.Printf("  Use GOTOOLCHAIN=local to keep gip in charge.\n")
+	}
+
+	// The bin directory of the current release has to come first in the PATH
+	// for a tool that calls go to find the right one.
+	currentBin := st.CurrentBinLink()
+	if !onPath(currentBin) {
+		problems++
+		fmt.Printf("\n! %s is not in the PATH.\n", currentBin)
+		fmt.Printf("  A tool that calls go would find another one.\n")
+		fmt.Printf("  Add it in front of the PATH:\n")
+		fmt.Printf("    setx PATH \"%s;%%PATH%%\"\n", currentBin)
+	}
+
+	if cur == "" {
+		problems++
+		fmt.Printf("\n! No release is selected.\n")
+		fmt.Printf("  Run \"gip\" in a project to select the release it asks for.\n")
+	}
+
+	if problems == 0 {
+		fmt.Printf("\nEverything is set up for gip.\n")
+		return nil
+	}
+	fmt.Printf("\n%d problem(s) found.\n", problems)
+	return errProblems
+}
+
+// errProblems signals that the doctor found problems in the environment.
+var errProblems = errors.New("problems found")
+
+// sameDir reports whether two paths point at the same directory.
+func sameDir(a, b string) bool {
+	ua, err := filepath.Abs(a)
+	if err != nil {
+		return false
+	}
+	ub, err := filepath.Abs(b)
+	if err != nil {
+		return false
+	}
+	return strings.EqualFold(filepath.Clean(ua), filepath.Clean(ub))
+}
+
+// onPath reports whether a directory is part of the PATH.
+func onPath(dir string) bool {
+	for _, p := range filepath.SplitList(os.Getenv("PATH")) {
+		if p == "" {
+			continue
+		}
+		if sameDir(p, dir) {
+			return true
+		}
+	}
+	return false
+}
+
 // cmdGo hands the arguments over to the go command of the selected release.
 func cmdGo(global options, args []string) error {
 	st, err := openStore()
@@ -504,6 +637,9 @@ func newRunner(st *store.Store, release string) *exec.Runner {
 // working directory decides. When the module does not ask for a particular
 // release the current one is used.
 func resolveRelease(st *store.Store, opts options, allowDownload bool) (string, error) {
+	// The --no-download flag turns every download into an error.
+	allowDownload = allowDownload && !opts.noDownload
+
 	if opts.version != "" {
 		norm := version.TrimGo(strings.TrimSpace(opts.version))
 		if !version.IsValid(norm) {
@@ -548,6 +684,8 @@ func resolveRelease(st *store.Store, opts options, allowDownload bool) (string, 
 // resolveRequirement turns a requirement of a module into a release,
 // downloading it when it is missing.
 func resolveRequirement(st *store.Store, req resolver.Requirement, opts options, allowDownload bool) (string, error) {
+	allowDownload = allowDownload && !opts.noDownload
+
 	if req.Exact {
 		// The toolchain directive names one exact release.
 		if st.IsInstalled(req.Version) {

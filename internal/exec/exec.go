@@ -132,6 +132,67 @@ func (r *Runner) Output(args []string) ([]byte, error) {
 	return cmd.Output()
 }
 
+// Path returns the PATH the go command runs with.
+func (r *Runner) Path() string { return r.path(os.Environ()) }
+
+// RunCommand runs an arbitrary command with the environment of the release.
+//
+// It is meant for third party tools that drive the go command themselves:
+// they find the go command of the release in the PATH and work with the
+// GOROOT, GOBIN and GOCACHE that belong to it.
+func (r *Runner) RunCommand(name string, args []string, stdin io.Reader, stdout, stderr io.Writer) error {
+	env := r.Environment(os.Environ())
+	path, err := lookPathIn(name, r.path(os.Environ()))
+	if err != nil {
+		return err
+	}
+	cmd := osexec.Command(path, args...)
+	cmd.Env = env
+	cmd.Stdin = stdin
+	cmd.Stdout = stdout
+	cmd.Stderr = stderr
+	return cmd.Run()
+}
+
+// lookPathIn finds an executable in the given PATH.
+//
+// Unlike exec.LookPath it uses the PATH that is handed to it and not the
+// one of the process, and it honours PATHEXT on Windows.
+func lookPathIn(file, pathEnv string) (string, error) {
+	if strings.ContainsAny(file, `:\/`) {
+		if fi, err := os.Stat(file); err == nil && !fi.IsDir() {
+			return file, nil
+		}
+		return "", fmt.Errorf("%s: file does not exist", file)
+	}
+
+	exts := []string{""}
+	if runtime.GOOS == "windows" {
+		exts = nil
+		for _, e := range filepath.SplitList(os.Getenv("PATHEXT")) {
+			if e != "" {
+				exts = append(exts, e)
+			}
+		}
+		if len(exts) == 0 {
+			exts = []string{".exe", ".cmd", ".bat"}
+		}
+	}
+
+	for _, dir := range filepath.SplitList(pathEnv) {
+		if dir == "" {
+			dir = "."
+		}
+		for _, ext := range exts {
+			path := filepath.Join(dir, file+ext)
+			if fi, err := os.Stat(path); err == nil && !fi.IsDir() {
+				return path, nil
+			}
+		}
+	}
+	return "", fmt.Errorf("executable %q not found in PATH", file)
+}
+
 // ExitCode returns the exit status of a command that failed, or 1 if the
 // failure was not caused by the command itself.
 func ExitCode(err error) int {

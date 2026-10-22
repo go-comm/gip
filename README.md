@@ -195,6 +195,72 @@ Both links of `current` are switched together. They are staged under
 temporary names and renamed into place, and a failure of the second rename
 rolls the first one back, so the previous selection stays intact.
 
+## Third party tools
+
+Linters, generators and IDE plugins drive the go command themselves: they
+look for `go` in the PATH and work with the `GOROOT` it reports. There are
+two ways to let them cooperate with gip.
+
+### gip exec
+
+`gip exec` runs a command with the environment of the selected release:
+
+```console
+$ gip exec golangci-lint run ./...
+$ gip exec gopls check ./...
+```
+
+The command finds the go command of the release in the PATH and works with
+the `GOROOT`, `GOBIN` and `GOCACHE` that belong to it. `GOTOOLCHAIN` is set
+to `local`, so the go command does not switch to another toolchain behind
+your back.
+
+### The current release in the PATH
+
+A tool that is started without `gip exec` finds the go command in the PATH.
+Put the bin directory of the current release in front of it:
+
+```
+~/.gip/current/bin
+```
+
+Running `gip` in a project switches the current release, so a tool that is
+started afterwards works with the version the project asks for.
+
+### The GOROOT in the environment
+
+A `GOROOT` in the environment overrides the toolchain of every go command,
+no matter where that command comes from. A tool would then build against the
+standard library of that other Go installation.
+
+The same is true for `GOTOOLCHAIN`: a value other than `local` lets the go
+command pick another toolchain on its own.
+
+`gip doctor` reports both problems and shows how to fix them. It exits with
+a status of 1 when it finds any, which makes it usable in a script:
+
+```console
+$ gip doctor
+GIP_HOME   /home/user/.gip
+CURRENT    1.22.0
+
+! GOROOT is set to /usr/local/go in the environment.
+  It overrides the toolchain of every go command, so a tool
+  would build against /usr/local/go instead of /home/user/.gip/versions/1.22.0.
+  Remove it: unset GOROOT
+
+! /home/user/.gip/current/bin is not in the PATH.
+  A tool that calls go would find another one.
+  Add it in front of the PATH:
+    export PATH="/home/user/.gip/current/bin:$PATH"
+
+2 problem(s) found.
+```
+
+Tools that are installed with `gip install` end up in the GOBIN of the
+release, `~/.gip/gobin/<version>`. That directory is part of the PATH that
+`gip exec` builds, so such a tool is found right away.
+
 ## Environment variables
 
 | Variable    | Meaning                                                      |
