@@ -14,13 +14,15 @@
 //	│   ├── 1.19.10/        <- GOCACHE of that release
 //	│   └── 1.22.0/
 //	└── current/
-//	    ├── bin   -> ../versions/1.22.0/bin
-//	    └── gobin -> ../gobin/1.22.0
+//	    ├── gobin  -> ../gobin/1.22.0
+//	    └── goroot -> ../versions/1.22.0
 //
-// Note that GOROOT must never point at "current": the directory only holds
-// the bin and gobin links and is missing the src, pkg and lib directories
-// that a GOROOT requires. The "current" links exist purely as a convenience
-// for users who put ~/.gip/current/bin on their PATH.
+// Note that GOROOT must never point at "current" itself: the directory only
+// holds the gobin and goroot links and is missing the src, pkg and lib
+// directories that a GOROOT requires. The goroot link points at a whole
+// GOROOT and is the path to hand to tools that expect one, such as the
+// go.goroot setting of the VS Code Go extension. Its bin directory is the
+// one to put in front of the PATH.
 package store
 
 import (
@@ -399,7 +401,11 @@ func (s *Store) Remove(v string) error {
 		}
 	}
 	if cur, err := s.Current(); err == nil && cur == v {
+		// The current release is gone, so the links that point at it would
+		// dangle. The goroot link is read to find the current release, so
+		// it has to be the last one to go.
 		os.Remove(s.metaPath())
+		os.Remove(s.CurrentGoBinLink())
 		os.Remove(s.GorootLink())
 	}
 	return nil

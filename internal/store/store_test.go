@@ -161,6 +161,26 @@ func TestUseAndCurrent(t *testing.T) {
 	}
 }
 
+// TestRemoveCurrent checks that the links of the current release do not
+// dangle after it is removed.
+func TestRemoveCurrent(t *testing.T) {
+	s := newStore(t, "1.22.0")
+	if err := s.Use("1.22.0"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Remove("1.22.0"); err != nil {
+		t.Fatal(err)
+	}
+	for _, l := range s.currentLinks("1.22.0") {
+		if _, err := os.Lstat(l.path); err == nil {
+			t.Errorf("the link %s is still there", l.path)
+		}
+	}
+	if cur, _ := s.Current(); cur != "" {
+		t.Errorf("Current() = %q, want an empty string", cur)
+	}
+}
+
 func TestUseNotInstalled(t *testing.T) {
 	s := newStore(t, "1.22.0")
 	if err := s.Use("1.19.10"); err == nil {
