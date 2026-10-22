@@ -18,6 +18,7 @@ import (
 	osexec "os/exec"
 	"path/filepath"
 	"strings"
+	"text/tabwriter"
 
 	"github.com/go-comm/gip/internal/downloader"
 	"github.com/go-comm/gip/internal/exec"
@@ -98,12 +99,31 @@ func run(args []string) error {
 		fmt.Println("gip version", buildVersion())
 		return nil
 
+	case "install":
+		// "install" belongs to both worlds: a version installs a toolchain,
+		// anything else is a package for "go install". Every argument that
+		// "go install" accepts behaves the same way, so nothing of the go
+		// command is shadowed.
+		if len(rest) == 1 && looksLikeToolchainVersion(rest[0]) {
+			return cmdToolchainInstall(global, rest)
+		}
+		return cmdGo(global, append([]string{"install"}, rest...))
+
 	case "version":
-		// The version of the selected release, asked of the go command.
-		return cmdGo(global, append([]string{"version"}, rest...))
+		// Without arguments the version of gip, followed by the version of
+		// the release that would be used. With arguments the go command
+		// answers, so "gip version -m ./bin" stays "go version -m ./bin".
+		if len(rest) > 0 {
+			return cmdGo(global, append([]string{"version"}, rest...))
+		}
+		return cmdVersion(global, rest)
 
 	case "env":
-		// The environment of the selected release.
+		// The paths gip manages, followed by the environment of the
+		// selected release. Reporting never downloads a release.
+		if len(rest) == 0 {
+			return cmdEnv(global)
+		}
 		return cmdGo(global, append([]string{"env"}, rest...))
 
 	case "help", "-h", "--help":
@@ -132,8 +152,9 @@ when it is missing and the current release is switched over to it.
 
 Every command that gip does not own is handed over to the go command of the
 selected release, so "gip test ./..." runs "go test ./..." with the toolchain
-the module asks for. No command of gip has the name of a go command, so
-"gip version" is "go version" and "gip env" is "go env".
+the module asks for. The three commands gip shares with the go command only
+print or do something in addition and then run the go command itself, so none
+of its behaviour is lost.
 
 Commands of gip:
   auto                     Align the toolchain with the current directory
@@ -146,13 +167,23 @@ Commands of gip:
   toolchain uninstall <version> Remove an installed release
   toolchain env                 Print the paths gip manages
 
-The same commands are also available without the namespace, as long as they
-do not clash with a go command:
+The toolchain commands are also available without the namespace, as long as
+they do not clash with a go command:
 
   use <version>       List: gip toolchain use
   ls                  List: gip toolchain ls
   current             List: gip toolchain current
   uninstall <version> List: gip toolchain uninstall
+
+Commands shared with the go command:
+  version            The version of gip, then "go version"
+  env                The paths gip manages, then "go env"
+  install <version>  Download and install a Go release; every other argument
+                     is a package for "go install"
+
+Both of them hand their arguments over unchanged when they are given any, so
+"gip version -m ./bin" is "go version -m ./bin" and "gip env GOROOT" answers
+with the value of the variable alone.
 
 Flags of gip:
   -go, --go <version>  Use this release instead of the one the module asks for
@@ -166,7 +197,8 @@ and "gip --go 1.20 run ." mean the same.
 "gip ls --all" also lists the releases that can be installed.
 
 The version of a release is given without the "go" prefix, for example
-1.21.0. A version such as 1.21 selects the newest release of that series.
+1.21.0. A version such as 1.21 selects the newest release of that series, and
+"latest" the newest stable release.
 `)
 }
 
@@ -245,6 +277,28 @@ func flagName(arg string) (name, value string, hasValue bool) {
 	return body, "", false
 }
 
+// isLatest reports whether a request asks for the newest stable release
+// rather than for a particular version.
+func isLatest(s string) bool {
+	return strings.EqualFold(strings.TrimSpace(s), "latest")
+}
+
+// looksLikeToolchainVersion reports whether s names a Go release rather than
+// a package.
+func looksLikeToolchainVersion(s string) bool {
+	s = strings.TrimSpace(s)
+	if isLatest(s) {
+		return true
+	}
+	s = version.TrimGo(s)
+	if !strings.Contains(s, ".") {
+		// A version always carries at least a minor number, so "1" is a
+		// package name.
+		return false
+	}
+	return version.IsValid(s)
+}
+
 // openStore returns the store to work on.
 func openStore() (*store.Store, error) {
 	return store.Default()
@@ -289,9 +343,10 @@ func cmdToolchainInstall(global options, args []string) error {
 	in := &installer.Installer{Store: st, Mirror: mirrorOf(global), Out: os.Stderr}
 
 	// A full version such as 1.19.10 names one release, a version such as
-	// 1.19 stands for the whole series.
+	// 1.19 stands for the whole series, and "latest" is the newest stable
+	// release.
 	norm := version.TrimGo(strings.TrimSpace(args[0]))
-	if !version.IsValid(norm) {
+	if !isLatest(norm) && !version.IsValid(norm) {
 		return fmt.Errorf("invalid Go version %q", args[0])
 	}
 
@@ -423,6 +478,31 @@ func cmdToolchainUninstall(global options, args []string) error {
 	return nil
 }
 
+// cmdEnv prints the paths gip manages and then the environment of the release
+// the go command would run with.
+//
+// Both halves describe the same release, so the GOROOT gip reports and the
+// GOROOT the go command reports cannot disagree. Reporting never downloads.
+func cmdEnv(global options) error {
+	st, err := openStore()
+	if err != nil {
+		return err
+	}
+	release, resolveErr := resolveRelease(st, global, false)
+	if release == "" {
+		// Nothing is selected, so the store itself is described.
+		release, _ = st.Current()
+	}
+	if err := printToolchainEnv(st, release, mirrorOf(global)); err != nil {
+		return err
+	}
+	if resolveErr != nil {
+		return resolveErr
+	}
+	fmt.Println()
+	return cmdGoNoDownload(global, []string{"env"})
+}
+
 // cmdToolchainEnv prints the paths gip manages.
 func cmdToolchainEnv(global options, args []string) error {
 	st, err := openStore()
@@ -430,16 +510,52 @@ func cmdToolchainEnv(global options, args []string) error {
 		return err
 	}
 	cur, _ := st.Current()
-	fmt.Printf("GIP_HOME  %s\n", st.Root)
-	fmt.Printf("CURRENT   %s\n", cur)
-	if cur != "" {
-		fmt.Printf("GOROOT    %s\n", st.VersionDir(cur))
-		fmt.Printf("GOBIN     %s\n", st.GoBinDir(cur))
-		fmt.Printf("GOCACHE   %s\n", st.GoCacheDir(cur))
+	return printToolchainEnv(st, cur, mirrorOf(global))
+}
+
+// printToolchainEnv prints the paths gip manages for a release. An empty
+// release describes the store without a selection.
+func printToolchainEnv(st *store.Store, release, mirror string) error {
+	// A tab writer keeps the values in one column whatever the length of
+	// the names is.
+	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+	fmt.Fprintf(w, "GIP_HOME\t%s\n", st.Root)
+	fmt.Fprintf(w, "CURRENT\t%s\n", release)
+	if release != "" {
+		fmt.Fprintf(w, "GOROOT\t%s\n", st.VersionDir(release))
+		fmt.Fprintf(w, "GOBIN\t%s\n", st.GoBinDir(release))
+		fmt.Fprintf(w, "GOCACHE\t%s\n", st.GoCacheDir(release))
 	}
-	fmt.Printf("GOROOT_LINK %s\n", st.GorootLink())
-	fmt.Printf("GO_BIN      %s\n", st.GorootBinDir())
-	fmt.Printf("MIRROR    %s\n", mirrorOf(global))
+	fmt.Fprintf(w, "GOROOT_LINK\t%s\n", st.GorootLink())
+	fmt.Fprintf(w, "GO_BIN\t%s\n", st.GorootBinDir())
+	fmt.Fprintf(w, "MIRROR\t%s\n", mirror)
+	return w.Flush()
+}
+
+// cmdVersion prints the version of gip and the version of the release that
+// would be used.
+func cmdVersion(global options, args []string) error {
+	fmt.Println("gip version", buildVersion())
+
+	st, err := openStore()
+	if err != nil {
+		return nil
+	}
+	// Reporting never downloads, so a release that is missing is reported on
+	// stderr and gip stays quiet on stdout.
+	release, err := resolveRelease(st, global, false)
+	if err != nil || release == "" {
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "gip: "+err.Error())
+		}
+		return nil
+	}
+	runner := newRunner(st, release)
+	out, err := runner.Output([]string{"version"})
+	if err != nil {
+		return nil
+	}
+	fmt.Print(string(out))
 	return nil
 }
 
@@ -578,11 +694,22 @@ func onPath(dir string) bool {
 
 // cmdGo hands the arguments over to the go command of the selected release.
 func cmdGo(global options, args []string) error {
+	return runGo(global, args, true)
+}
+
+// cmdGoNoDownload is cmdGo for the commands that only report: it never
+// downloads a release, so that asking for information stays cheap.
+func cmdGoNoDownload(global options, args []string) error {
+	return runGo(global, args, false)
+}
+
+// runGo runs the go command of the selected release.
+func runGo(global options, args []string, allowDownload bool) error {
 	st, err := openStore()
 	if err != nil {
 		return err
 	}
-	release, err := resolveRelease(st, global, true)
+	release, err := resolveRelease(st, global, allowDownload)
 	if err != nil {
 		return err
 	}
@@ -610,6 +737,9 @@ func resolveRelease(st *store.Store, opts options, allowDownload bool) (string, 
 
 	if opts.version != "" {
 		norm := version.TrimGo(strings.TrimSpace(opts.version))
+		if isLatest(norm) {
+			return installLatest(st, opts, allowDownload)
+		}
 		if !version.IsValid(norm) {
 			return "", fmt.Errorf("invalid Go version %q", opts.version)
 		}
@@ -647,6 +777,25 @@ func resolveRelease(st *store.Store, opts options, allowDownload bool) (string, 
 		return "", fmt.Errorf("cannot determine a Go version: no go.mod or go.work file was found and no release is selected; run \"gip toolchain use <version>\"")
 	}
 	return resolveRequirement(st, req, opts, allowDownload)
+}
+
+// installLatest turns the request "latest" into a release, downloading the
+// newest stable one when it is missing.
+//
+// The newest release can only be found in the manifest of the download site,
+// so the request cannot be answered without the network.
+func installLatest(st *store.Store, opts options, allowDownload bool) (string, error) {
+	if !allowDownload {
+		// The newest release is only known to the manifest, which needs the
+		// network. The newest installed release is the best answer that can
+		// be given without it.
+		if v := latestInstalled(st); v != "" {
+			return v, nil
+		}
+		return "", errors.New(`"latest" can only be resolved by downloading a release`)
+	}
+	in := &installer.Installer{Store: st, Mirror: mirrorOf(opts), Out: os.Stderr}
+	return in.Install(context.Background(), "latest", false)
 }
 
 // resolveRequirement turns a requirement of a module into a release,
@@ -702,6 +851,15 @@ func cmdAuto(global options, args []string) error {
 	if global.version != "" {
 		// An explicit version replaces the requirement of the module.
 		norm := version.TrimGo(strings.TrimSpace(global.version))
+		if isLatest(norm) {
+			// A requirement has to name a release, so "latest" is resolved
+			// to the newest stable one first.
+			rel, err := installLatest(st, global, !global.noDownload)
+			if err != nil {
+				return err
+			}
+			norm = rel
+		}
 		if !version.IsValid(norm) {
 			return fmt.Errorf("invalid Go version %q", global.version)
 		}

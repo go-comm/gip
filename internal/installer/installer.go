@@ -47,11 +47,17 @@ func (in *Installer) Install(ctx context.Context, req string, exact bool) (strin
 	}
 
 	norm := version.TrimGo(strings.TrimSpace(req))
-	if !version.IsValid(norm) {
+
+	if !version.IsValid(norm) && !strings.EqualFold(norm, "latest") {
 		return "", fmt.Errorf("invalid Go version %q", req)
 	}
 	if err := in.Store.Ensure(); err != nil {
 		return "", err
+	}
+
+	// "latest" is the newest stable release.
+	if strings.EqualFold(norm, "latest") {
+		return in.installLatest(ctx)
 	}
 
 	// Work out which release the request refers to. A request for a whole
@@ -151,6 +157,27 @@ func (in *Installer) install(ctx context.Context, m *downloader.Manifest, releas
 	}
 	fmt.Fprintf(in.Out, "installed go%s in %s\n", release, in.Store.VersionDir(release))
 	return nil
+}
+
+// installLatest installs the newest stable release.
+func (in *Installer) installLatest(ctx context.Context) (string, error) {
+	m, err := downloader.FetchManifest(ctx, in.Mirror)
+	if err != nil {
+		return "", err
+	}
+	rel, err := m.Latest()
+	if err != nil {
+		return "", err
+	}
+	release := downloader.TrimReleasePrefix(rel.Version)
+	if in.Store.IsInstalled(release) {
+		fmt.Fprintf(in.Out, "go%s is already installed\n", release)
+		return release, nil
+	}
+	if err := in.install(ctx, m, release); err != nil {
+		return "", err
+	}
+	return release, nil
 }
 
 // selectRelease maps a requested version to the name of a release.

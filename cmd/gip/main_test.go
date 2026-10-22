@@ -232,9 +232,40 @@ func TestResolveReleaseInvalidVersion(t *testing.T) {
 	}
 }
 
-// TestNoCommandClash makes sure that no command of gip has the name of a go
-// command, so that "gip <command>" always means the same as
+// TestLooksLikeToolchainVersion checks which arguments of "gip install" name
+// a Go release and which name a package.
+func TestLooksLikeToolchainVersion(t *testing.T) {
+	tests := []struct {
+		in   string
+		want bool
+	}{
+		{"1.22.0", true},
+		{"1.22", true},
+		{"go1.22.0", true},
+		{"1.21rc1", true},
+		{"latest", true},
+		{"1", false},
+		{"golang.org/x/tools/cmd/stringer@latest", false},
+		{"stringer", false},
+		{"example.com/foo", false},
+		{"foo.bar", false},
+		{"v1.2.3", false},
+		{"", false},
+	}
+	for _, tt := range tests {
+		if got := looksLikeToolchainVersion(tt.in); got != tt.want {
+			t.Errorf("looksLikeToolchainVersion(%q) = %v, want %v", tt.in, got, tt.want)
+		}
+	}
+}
+
+// TestNoCommandClash makes sure that the commands gip owns have no name of a
+// go command, so that "gip <command>" always means the same as
 // "go <command>".
+//
+// Three names are shared: "version", "env" and "install". They print or do
+// what gip knows in addition and then run the go command itself, so nothing
+// of the go command is taken away.
 func TestNoCommandClash(t *testing.T) {
 	// The commands of the go command.
 	goCommands := []string{
@@ -246,10 +277,30 @@ func TestNoCommandClash(t *testing.T) {
 	gipCommands := []string{
 		"auto", "exec", "doctor", "toolchain", "use", "ls", "current", "uninstall",
 	}
-	for _, g := range gipCommands {
+	// The commands that gip shares with the go command.
+	shared := []string{"version", "env", "install"}
+
+	isGoCommand := func(name string) bool {
 		for _, c := range goCommands {
-			if g == c {
-				t.Errorf("the command %q exists in the go command as well", g)
+			if name == c {
+				return true
+			}
+		}
+		return false
+	}
+
+	for _, g := range gipCommands {
+		if isGoCommand(g) {
+			t.Errorf("the command %q exists in the go command as well", g)
+		}
+	}
+	for _, s := range shared {
+		if !isGoCommand(s) {
+			t.Errorf("the shared command %q is not a command of the go command", s)
+		}
+		for _, g := range gipCommands {
+			if g == s {
+				t.Errorf("the command %q is listed as owned and as shared", s)
 			}
 		}
 	}

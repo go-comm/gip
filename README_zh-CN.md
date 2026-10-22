@@ -15,7 +15,7 @@ $ go install github.com/go-comm/gip/cmd/gip@latest
 刚发版时校验库可能还不知道这个新版本，安装会报 `invalid version: unknown revision`。版本本身没问题，直接装即可：
 
 ```console
-$ GONOSUMDB=github.com/go-comm/* go install github.com/go-comm/gip/cmd/gip@v0.3.0
+$ GONOSUMDB=github.com/go-comm/* go install github.com/go-comm/gip/cmd/gip@v0.4.0
 ```
 
 ## 使用
@@ -41,6 +41,9 @@ gip 自己负责管理工具链：
 | `gip auto`                           | 同上，完整写法           |
 | `gip exec <命令> [参数]`             | 用该工具链运行一条命令   |
 | `gip doctor`                         | 体检环境配置             |
+| `gip version`                        | gip 的版本 + 所选版本    |
+| `gip env`                            | gip 的路径 + 所选版本的环境 |
+| `gip install <版本>`                  | 下载并安装一个版本       |
 | `gip toolchain install <version>`    | 下载并安装一个版本       |
 | `gip toolchain use <version>`        | 把某个版本设为当前版本   |
 | `gip toolchain ls`                   | 列出已安装的版本         |
@@ -52,13 +55,35 @@ gip 自己负责管理工具链：
 
 `gip ls --all` 还会列出可以安装的版本。gip 自身的版本用 `gip --version` 打印。
 
-gip 自己的命令里没有和 go 命令同名的：`gip version` 就是 `go version`，`gip env` 就是 `go env`，`gip install` 就是 `go install`，用的都是所选版本。gip 自身的版本用 `gip --version` 打印，gip 管理的路径用 `gip toolchain env` 打印。
-
-安装一个版本用 `gip toolchain install <version>`：
+`gip version` 和 `gip env` 先打印 gip 自己的信息，再接所选版本的同名命令，所以 `gip version` 是 gip 的版本加上所选版本的版本，`gip env` 是 gip 管理的路径加上所选版本的环境：
 
 ```console
-$ gip toolchain install 1.22.0
+$ gip version
+gip version v0.4.0
+go version go1.22.12 windows/amd64
+
+$ gip env
+GIP_HOME     /home/user/.gip
+CURRENT      1.22.12
+...
+
+set GO111MODULE=on
+set GOARCH=amd64
+...
 ```
+
+两段总是指向同一个版本：gip 段里的路径就是下面 `go env` 报告的那个版本，未必是当前版本。带上参数时参数原样交给 go 命令，所以 `gip version -m ./bin` 就是 `go version -m ./bin`，`gip env GOROOT` 只打印该变量的值。只看 gip 自身的版本用 `gip --version`，只看 gip 管理的路径用 `gip toolchain env`。
+
+其余的 go 命令直接转发，`gip run` 就是 `go run`。
+
+安装一个版本用 `gip install <版本>`：
+
+```console
+$ gip install 1.22.0
+$ gip install latest
+```
+
+`install` 是唯一同时属于两边的命令：参数是版本号时安装工具链，否则执行 `go install`。因此 `gip install golang.org/x/tools/cmd/stringer@latest` 安装一个包，而 `gip install 1.22.0` 安装一个版本。`go install` 能接受的参数，行为完全一致，没有遮蔽 go 命令的任何语义。
 
 其余命令都属于 go 命令，会被原样转发：
 
@@ -81,6 +106,7 @@ gip 自己的参数可以在命令行任意位置出现；go 命令的参数则�
 $ gip -go=1.20 run ./cmd/app
 $ gip --go=1.20 run ./cmd/app
 $ gip -go 1.20 run ./cmd/app
+$ gip --go latest run ./cmd/app
 ```
 
 需要注意的是，Windows PowerShell 5.1 会把带等号的参数拆开，因此在该版本中必须加引号：
@@ -128,6 +154,7 @@ switched to go1.21.13
 
 * 完整版本号（如 `1.22.0`）精确选中该版本。
 * 不带补丁号的版本号（如 `1.22`）选中该系列中最新的版本，因此 `gip install 1.22` 会安装最新的 1.22.x。
+* `latest` 选中全部里最新的稳定版。
 
 判断哪个版本满足要求的规则与 Go 标准库保持一致：
 
@@ -176,6 +203,14 @@ $ gip exec golangci-lint run ./...
 $ gip exec gopls check ./...
 ```
 
+命令会依次在该版本的 bin 目录、该版本的 gobin 目录、PATH 里查找，所以 go 命令和随它一起安装的工具同样能找到：
+
+```console
+$ gip exec go version          # 该版本的 go 命令
+$ gip exec gofmt -w .          # 该版本 bin 目录里的工具
+$ gip exec stringer            # 装在该版本 gobin 里的工具
+```
+
 该命令会在 PATH 中找到这个版本的 go 命令，并使用与之配套的 `GOROOT`、`GOBIN`、`GOCACHE`。此时 `GOTOOLCHAIN` 被设为 `local`，go 命令不会在你背后自行切换工具链。
 
 ### 把当前版本放进 PATH
@@ -222,7 +257,7 @@ MIRROR     https://go.dev/dl
 
 ```console
 $ gip doctor
-gip version v0.3.0
+gip version v0.4.0
 GIP_HOME   /home/user/.gip
 CURRENT    1.22.0
 
@@ -279,10 +314,10 @@ $ go test ./...
 
 `gip --version` 从构建信息里取版本号：
 
-* 用 `go install github.com/go-comm/gip/cmd/gip@v0.3.0` 安装的二进制报告 `v0.3.0`。
+* 用 `go install github.com/go-comm/gip/cmd/gip@v0.4.0` 安装的二进制报告 `v0.4.0`。
 * 从仓库构建的二进制报告它所基于的那个 commit 的版本：commit 上带 tag 就报告该 tag，
   在最新 tag 之后则是形如 `v0.2.1-0.20261022133637-62a53e2482f2` 的伪版本。工作区有未提交改动时加上 `+dirty` 后缀。
-* `go run` 完全不带版本信息，报告的是源码树的版本号 `v0.3.0`。
+* `go run` 完全不带版本信息，报告的是源码树的版本号 `v0.4.0`。
 
 也可以在构建时指定：
 

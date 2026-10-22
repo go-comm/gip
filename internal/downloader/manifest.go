@@ -178,6 +178,28 @@ func (m *Manifest) Find(v, goos, goarch string) (*Release, *File, error) {
 	return nil, nil, fmt.Errorf("unknown Go release %s", want)
 }
 
+// Latest returns the newest stable release in the manifest.
+func (m *Manifest) Latest() (*Release, error) {
+	var best *Release
+	for i := range m.Releases {
+		rel := &m.Releases[i]
+		if !rel.Stable {
+			continue
+		}
+		v := TrimReleasePrefix(rel.Version)
+		if version.Parse(v).Kind != "" {
+			continue // skip prereleases
+		}
+		if best == nil || version.Compare(v, TrimReleasePrefix(best.Version)) > 0 {
+			best = rel
+		}
+	}
+	if best == nil {
+		return nil, fmt.Errorf("no stable release in the manifest")
+	}
+	return best, nil
+}
+
 // Sorted returns the releases of the manifest, newest first.
 func (m *Manifest) Sorted() []*Release {
 	out := make([]*Release, 0, len(m.Releases))

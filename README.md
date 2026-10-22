@@ -21,7 +21,7 @@ yet, and the install fails with `invalid version: unknown revision`. The
 release itself is fine, so installing it directly works:
 
 ```console
-$ GONOSUMDB=github.com/go-comm/* go install github.com/go-comm/gip/cmd/gip@v0.3.0
+$ GONOSUMDB=github.com/go-comm/* go install github.com/go-comm/gip/cmd/gip@v0.4.0
 ```
 
 ## Usage
@@ -48,6 +48,9 @@ gip owns the management of the toolchains:
 | `gip auto`                          | the same, written out                |
 | `gip exec <command> [args...]`      | run a command with the toolchain     |
 | `gip doctor`                        | check the environment for problems   |
+| `gip version`                       | the version of gip and of the release |
+| `gip env`                           | the paths of gip and of the release  |
+| `gip install <version>`             | download and install a release       |
 | `gip toolchain install <version>`   | download and install a release       |
 | `gip toolchain use <version>`       | make a release the current one       |
 | `gip toolchain ls`                  | list the installed releases          |
@@ -61,16 +64,45 @@ the namespace: `gip use`, `gip ls`, `gip current` and `gip uninstall`.
 `gip ls --all` also lists the releases that can be installed. The version of gip
 itself is printed with `gip --version`.
 
-A release is installed with `gip toolchain install <version>`:
+A release is installed with `gip install <version>`:
 
 ```console
-$ gip toolchain install 1.22.0
+$ gip install 1.22.0
+$ gip install latest
 ```
 
-No command of gip has the name of a go command. `gip version` is `go version`
-and `gip env` is `go env`, both of the selected release, and `gip install` is
-`go install`. The version of gip itself is printed with `gip --version`, the
-paths gip manages with `gip toolchain env`.
+`gip install` is the one command that belongs to both worlds. It installs a
+toolchain when it is given a version and runs `go install` otherwise, so
+`gip install golang.org/x/tools/cmd/stringer@latest` installs a package while
+`gip install 1.22.0` installs a release. Every argument that `go install`
+accepts behaves the same way, so nothing of the go command is shadowed.
+
+`gip version` and `gip env` report what gip knows and then the same
+command of the selected release, so `gip version` shows the version of gip
+followed by the version of the release and `gip env` shows the paths gip
+manages followed by the environment of the release:
+
+```console
+$ gip version
+gip version v0.4.0
+go version go1.22.12 windows/amd64
+
+$ gip env
+GIP_HOME     /home/user/.gip
+CURRENT      1.22.12
+...
+
+set GO111MODULE=on
+set GOARCH=amd64
+...
+```
+
+Both halves describe the same release: the paths gip prints are those of the
+release the `go env` below reports, which is not necessarily the current one.
+With arguments the go command answers, so `gip version -m ./bin` is
+`go version -m ./bin` and `gip env GOROOT` prints the value of the variable
+alone. The version of gip alone is printed with `gip --version`, the paths gip
+manages alone with `gip toolchain env`.
 
 Everything else belongs to the go command and is passed on unchanged:
 
@@ -95,6 +127,7 @@ of the go command allows it:
 $ gip -go=1.20 run ./cmd/app
 $ gip --go=1.20 run ./cmd/app
 $ gip -go 1.20 run ./cmd/app
+$ gip --go latest run ./cmd/app
 ```
 
 Note that Windows PowerShell 5.1 splits an argument that contains an equals
@@ -160,6 +193,7 @@ Versions are written without the `go` prefix, for example `1.22.0`.
 * A full version such as `1.22.0` selects exactly that release.
 * A version without a patch number such as `1.22` selects the newest release
   of that series, so `gip install 1.22` installs the latest 1.22.x.
+* `latest` selects the newest stable release of all.
 
 The rules that decide which release satisfies a requirement follow the Go
 standard library:
@@ -224,6 +258,16 @@ $ gip exec golangci-lint run ./...
 $ gip exec gopls check ./...
 ```
 
+The command is looked up in the bin directory of the release, in the gobin
+directory of the release and then in the PATH, so the go command and the
+tools that come with it are found as well:
+
+```console
+$ gip exec go version          # the go command of the release
+$ gip exec gofmt -w .          # a tool from the bin directory of the release
+$ gip exec stringer            # a tool installed in the gobin of the release
+```
+
 The command finds the go command of the release in the PATH and works with
 the `GOROOT`, `GOBIN` and `GOCACHE` that belong to it. `GOTOOLCHAIN` is set
 to `local`, so the go command does not switch to another toolchain behind
@@ -285,7 +329,7 @@ a status of 1 when it finds any, which makes it usable in a script:
 
 ```console
 $ gip doctor
-gip version v0.3.0
+gip version v0.4.0
 GIP_HOME   /home/user/.gip
 CURRENT    1.22.0
 
@@ -355,14 +399,14 @@ The project has no dependencies outside the standard library.
 
 `gip --version` reports the version from the build information:
 
-* A binary installed with `go install github.com/go-comm/gip/cmd/gip@v0.3.0`
-  reports `v0.3.0`.
+* A binary installed with `go install github.com/go-comm/gip/cmd/gip@v0.4.0`
+  reports `v0.4.0`.
 * A binary built from a repository reports the version of the commit it
   was built from: the tag when the commit carries one, and a pseudo-version
   such as `v0.2.1-0.20261022133637-62a53e2482f2` when the commit is after the
   latest tag. A modified working tree adds a `+dirty` suffix.
 * `go run` carries no version information at all and reports the version of
-  the source tree, `v0.3.0`.
+  the source tree, `v0.4.0`.
 
 The version can be set at build time with
 

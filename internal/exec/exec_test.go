@@ -3,6 +3,7 @@ package exec
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -65,6 +66,45 @@ func TestEnvironment(t *testing.T) {
 		if n > 1 {
 			t.Errorf("%s is set %d times", key, n)
 		}
+	}
+}
+
+// TestEnvironmentPathCasing checks that a PATH spelled "Path", which is what
+// Windows commonly reports, is found and replaced like "PATH".
+func TestEnvironmentPathCasing(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("environment variable names are case-insensitive only on Windows")
+	}
+	r := &Runner{
+		VersionDir: `C:\gip\versions\1.22.0`,
+		GoBinDir:   `C:\gip\gobin\1.22.0`,
+		GoCacheDir: `C:\gip\gocache\1.22.0`,
+	}
+	base := []string{
+		`Path=C:\Windows\system32`,
+		`SystemDrive=C:`,
+	}
+	env := r.Environment(base)
+
+	var path string
+	var seen int
+	for _, kv := range env {
+		if i := strings.IndexByte(kv, '='); i > 0 && strings.EqualFold(kv[:i], "PATH") {
+			seen++
+			path = kv[i+1:]
+		}
+	}
+	if seen != 1 {
+		t.Fatalf("PATH is set %d times, want exactly once", seen)
+	}
+
+	// The PATH of the caller has to survive at the end of the new PATH,
+	// otherwise the go command cannot find git, a C compiler or any other
+	// tool it may run.
+	sep := string(os.PathListSeparator)
+	want := r.GoBinDir + sep + filepath.Join(r.VersionDir, "bin") + sep + `C:\Windows\system32`
+	if path != want {
+		t.Errorf("PATH = %q, want %q", path, want)
 	}
 }
 

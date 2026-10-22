@@ -55,17 +55,23 @@ func (r *Runner) Environment(base []string) []string {
 		set["GOTOOLCHAIN"] = "local"
 	}
 
+	// The names of environment variables are case-insensitive on Windows,
+	// where the PATH of a process is commonly spelled "Path". Comparing the
+	// names literally would keep that variable as it is and append a second
+	// one, so the go command could end up with the PATH of the caller.
+	drop := make(map[string]bool, len(set)+1)
+	for k := range set {
+		drop[envKey(k)] = true
+	}
+	drop[envKey("PATH")] = true
+
 	env := make([]string, 0, len(base)+len(set)+1)
 	for _, kv := range base {
 		i := strings.IndexByte(kv, '=')
 		if i < 0 {
 			continue
 		}
-		key := kv[:i]
-		if _, ok := set[key]; ok {
-			continue
-		}
-		if key == "PATH" {
+		if drop[envKey(kv[:i])] {
 			continue
 		}
 		env = append(env, kv)
@@ -88,8 +94,9 @@ func (r *Runner) Environment(base []string) []string {
 func (r *Runner) path(base []string) string {
 	old := ""
 	for _, kv := range base {
-		if strings.HasPrefix(kv, "PATH=") {
-			old = kv[len("PATH="):]
+		i := strings.IndexByte(kv, '=')
+		if i > 0 && envKey(kv[:i]) == envKey("PATH") {
+			old = kv[i+1:]
 			break
 		}
 	}
@@ -102,6 +109,17 @@ func (r *Runner) path(base []string) string {
 		parts = append(parts, old)
 	}
 	return strings.Join(parts, sep)
+}
+
+// envKey normalizes the name of an environment variable for comparison.
+//
+// Windows treats the names as case-insensitive, so "Path" and "PATH" name the
+// same variable there. Elsewhere they are two different variables.
+func envKey(name string) string {
+	if runtime.GOOS == "windows" {
+		return strings.ToUpper(name)
+	}
+	return name
 }
 
 // Run runs the go command with the given arguments.

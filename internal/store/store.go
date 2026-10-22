@@ -320,11 +320,11 @@ func (s *Store) currentLinks(v string) []link {
 
 // Use makes the given release the current one.
 //
-// The bin, gobin and goroot links are switched together, so that the
-// compiler, the tools installed next to it and the GOROOT always come from
-// the same release. The links are staged under temporary names and then
-// renamed into place; if a rename fails the previous selection is restored,
-// so that it stays intact.
+// The gobin and goroot links are switched together, so that the tools that
+// were installed next to a release and its GOROOT always come from the same
+// one. The links are staged under temporary names and then renamed into
+// place; if a rename fails the previous selection is restored, so that it
+// stays intact.
 func (s *Store) Use(v string) error {
 	if !version.IsValid(v) {
 		return fmt.Errorf("invalid version %q", v)
