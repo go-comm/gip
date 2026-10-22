@@ -15,7 +15,7 @@ $ go install github.com/go-comm/gip/cmd/gip@latest
 刚发版时校验库可能还不知道这个新版本，安装会报 `invalid version: unknown revision`。版本本身没问题，直接装即可：
 
 ```console
-$ GONOSUMDB=github.com/go-comm/* go install github.com/go-comm/gip/cmd/gip@v0.2.0
+$ GONOSUMDB=github.com/go-comm/* go install github.com/go-comm/gip/cmd/gip@v0.3.0
 ```
 
 ## 使用
@@ -222,7 +222,7 @@ MIRROR     https://go.dev/dl
 
 ```console
 $ gip doctor
-gip version v0.2.0
+gip version v0.3.0
 GIP_HOME   /home/user/.gip
 CURRENT    1.22.0
 
@@ -279,10 +279,10 @@ $ go test ./...
 
 `gip --version` 从构建信息里取版本号：
 
-* 用 `go install github.com/go-comm/gip/cmd/gip@v0.2.0` 安装的二进制报告 `v0.2.0`。
+* 用 `go install github.com/go-comm/gip/cmd/gip@v0.3.0` 安装的二进制报告 `v0.3.0`。
 * 从仓库构建的二进制报告它所基于的那个 commit 的版本：commit 上带 tag 就报告该 tag，
   在最新 tag 之后则是形如 `v0.2.1-0.20261022133637-62a53e2482f2` 的伪版本。工作区有未提交改动时加上 `+dirty` 后缀。
-* `go run` 完全不带版本信息，报告的是源码树的版本号 `v0.2.0`。
+* `go run` 完全不带版本信息，报告的是源码树的版本号 `v0.3.0`。
 
 也可以在构建时指定：
 
