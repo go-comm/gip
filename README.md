@@ -337,3 +337,17 @@ $ go test ./...
 ```
 
 The project has no dependencies outside the standard library.
+
+### Version
+
+`gip version` reports the version from the build information: the tag of the
+repository the binary was built from, or the module version when it was
+installed with `go install github.com/go-comm/gip/cmd/gip@v0.2.0`. A build
+from a repository without a tag reports the version of the source tree with
+the commit appended, and a modified working tree adds a `+dirty` suffix.
+
+The version can be set at build time with
+
+```console
+$ go build -ldflags "-X main.versionOverride=v1.2.3" ./cmd/gip
+```

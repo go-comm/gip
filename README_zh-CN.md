@@ -263,3 +263,16 @@ $ go test ./...
 ```
 
 本项目除标准库外没有任何依赖。
+
+### 版本号
+
+`gip version` 从构建信息里取版本号：构建它的仓库的 tag，或者用
+`go install github.com/go-comm/gip/cmd/gip@v0.2.0` 安装时的模块版本。从没有
+tag 的仓库构建时，报的是源码树的版本号加上 commit；工作区有未提交改动时会加上
+`+dirty` 后缀。
+
+也可以在构建时指定：
+
+```console
+$ go build -ldflags "-X main.versionOverride=v1.2.3" ./cmd/gip
+```
