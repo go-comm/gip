@@ -11,7 +11,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"os"
 	"runtime"
@@ -19,6 +18,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-comm/gip/internal/compat"
 	"github.com/go-comm/gip/pkg/version"
 )
 
@@ -131,7 +131,7 @@ func fetchManifest(ctx context.Context, url string) (*Manifest, error) {
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("cannot fetch release manifest from %s: %s", url, resp.Status)
 	}
-	data, err := io.ReadAll(resp.Body)
+	data, err := compat.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
 	}

@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/go-comm/gip/internal/compat"
 	"github.com/go-comm/gip/pkg/version"
 )
 
@@ -93,7 +94,7 @@ func findUp(dir, name string) string {
 
 // ParseFile reads path and extracts its go and toolchain directives.
 func ParseFile(path string) (*Spec, error) {
-	data, err := os.ReadFile(path)
+	data, err := compat.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
@@ -120,12 +121,12 @@ func Parse(path string, data []byte) (*Spec, error) {
 // such as "go" and "toolchain" may be looked up this way.
 func Lookup(data []byte, key string) string {
 	for len(data) > 0 {
-		var line []byte
-		line, data, _ = bytes.Cut(data, []byte("\n"))
+		line, rest, _ := compat.Cut(data, []byte("\n"))
 		line = bytes.TrimSpace(line)
 		if v, ok := parseKey(line, key); ok {
 			return v
 		}
+		data = rest
 	}
 	return ""
 }

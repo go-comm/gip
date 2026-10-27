@@ -5,12 +5,21 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/go-comm/gip/internal/compat"
+	"github.com/go-comm/gip/internal/testutil"
 )
+
+func TestMain(m *testing.M) {
+	code := m.Run()
+	testutil.Cleanup()
+	os.Exit(code)
+}
 
 // newStore returns a store with a fake release installed.
 func newStore(t *testing.T, versions ...string) *Store {
 	t.Helper()
-	s := New(t.TempDir())
+	s := New(testutil.TempDir(t))
 	if err := s.Ensure(); err != nil {
 		t.Fatal(err)
 	}
@@ -30,7 +39,7 @@ func newStore(t *testing.T, versions ...string) *Store {
 		if isWindows() {
 			name = "go.exe"
 		}
-		if err := os.WriteFile(filepath.Join(dir, "bin", name), []byte("binary"), 0755); err != nil {
+		if err := compat.WriteFile(filepath.Join(dir, "bin", name), []byte("binary"), 0755); err != nil {
 			t.Fatal(err)
 		}
 		if err := s.EnsureVersionDirs(v); err != nil {
@@ -150,7 +159,7 @@ func TestUseAndCurrent(t *testing.T) {
 	}
 
 	// No temporary files may be left behind.
-	entries, err := os.ReadDir(s.CurrentDir())
+	entries, err := compat.ReadDir(s.CurrentDir())
 	if err != nil {
 		t.Fatal(err)
 	}

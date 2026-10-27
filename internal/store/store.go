@@ -32,6 +32,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/go-comm/gip/internal/compat"
 	"github.com/go-comm/gip/pkg/version"
 )
 
@@ -164,7 +165,7 @@ func (s *Store) IsInstalled(v string) bool {
 
 // Installed returns the installed releases, oldest first.
 func (s *Store) Installed() ([]string, error) {
-	entries, err := os.ReadDir(s.VersionsDir())
+	entries, err := compat.ReadDir(s.VersionsDir())
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, nil
@@ -195,7 +196,7 @@ func (s *Store) Current() (string, error) {
 	}
 	// Fall back to the recorded metadata, which also survives a manual
 	// removal of the links.
-	data, err := os.ReadFile(s.metaPath())
+	data, err := compat.ReadFile(s.metaPath())
 	if err != nil {
 		return "", nil
 	}
@@ -385,7 +386,7 @@ func (s *Store) writeMeta(v string) error {
 	if err := os.MkdirAll(s.Root, 0755); err != nil {
 		return err
 	}
-	return os.WriteFile(s.metaPath(), []byte(v+"\n"), 0644)
+	return compat.WriteFile(s.metaPath(), []byte(v+"\n"), 0644)
 }
 
 // Remove deletes an installed release along with its gobin and gocache

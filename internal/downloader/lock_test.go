@@ -4,10 +4,12 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/go-comm/gip/internal/testutil"
 )
 
 func TestAcquireLock(t *testing.T) {
-	path := filepath.Join(t.TempDir(), ".1.22.0.lock")
+	path := filepath.Join(testutil.TempDir(t), ".1.22.0.lock")
 
 	release, err := Acquire(path, time.Second)
 	if err != nil {
@@ -43,7 +45,7 @@ func TestAcquireLock(t *testing.T) {
 }
 
 func TestAcquireLockTimeout(t *testing.T) {
-	path := filepath.Join(t.TempDir(), ".1.22.0.lock")
+	path := filepath.Join(testutil.TempDir(t), ".1.22.0.lock")
 	release, err := Acquire(path, time.Second)
 	if err != nil {
 		t.Fatal(err)

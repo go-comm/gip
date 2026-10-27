@@ -6,7 +6,15 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+
+	"github.com/go-comm/gip/internal/testutil"
 )
+
+func TestMain(m *testing.M) {
+	code := m.Run()
+	testutil.Cleanup()
+	os.Exit(code)
+}
 
 func TestEnvironment(t *testing.T) {
 	r := &Runner{
@@ -109,7 +117,7 @@ func TestEnvironmentPathCasing(t *testing.T) {
 }
 
 func TestEnvironmentKeepsExplicitToolchain(t *testing.T) {
-	t.Setenv("GOTOOLCHAIN", "go1.22.0+auto")
+	testutil.Setenv(t, "GOTOOLCHAIN", "go1.22.0+auto")
 	r := &Runner{VersionDir: "/gip/versions/1.22.0"}
 	env := r.Environment(os.Environ())
 	for _, kv := range env {

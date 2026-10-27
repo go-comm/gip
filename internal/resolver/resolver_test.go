@@ -4,7 +4,16 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/go-comm/gip/internal/compat"
+	"github.com/go-comm/gip/internal/testutil"
 )
+
+func TestMain(m *testing.M) {
+	code := m.Run()
+	testutil.Cleanup()
+	os.Exit(code)
+}
 
 func TestLookup(t *testing.T) {
 	tests := []struct {
@@ -32,12 +41,12 @@ func TestLookup(t *testing.T) {
 }
 
 func TestFind(t *testing.T) {
-	root := t.TempDir()
+	root := testutil.TempDir(t)
 	sub := filepath.Join(root, "a", "b")
 	if err := os.MkdirAll(sub, 0755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(root, "go.mod"), []byte("module m\n\ngo 1.21\n"), 0644); err != nil {
+	if err := compat.WriteFile(filepath.Join(root, "go.mod"), []byte("module m\n\ngo 1.21\n"), 0644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -56,7 +65,7 @@ func TestFind(t *testing.T) {
 	}
 
 	// A go.work file takes precedence over a go.mod file.
-	if err := os.WriteFile(filepath.Join(root, "go.work"), []byte("go 1.22\n"), 0644); err != nil {
+	if err := compat.WriteFile(filepath.Join(root, "go.work"), []byte("go 1.22\n"), 0644); err != nil {
 		t.Fatal(err)
 	}
 	spec, err = Find(sub)
@@ -71,7 +80,7 @@ func TestFind(t *testing.T) {
 	}
 
 	// GOWORK=off disables the workspace.
-	t.Setenv("GOWORK", "off")
+	testutil.Setenv(t, "GOWORK", "off")
 	spec, err = Find(sub)
 	if err != nil {
 		t.Fatal(err)

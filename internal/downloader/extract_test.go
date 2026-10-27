@@ -7,7 +7,16 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/go-comm/gip/internal/compat"
+	"github.com/go-comm/gip/internal/testutil"
 )
+
+func TestMain(m *testing.M) {
+	code := m.Run()
+	testutil.Cleanup()
+	os.Exit(code)
+}
 
 // writeTarGz builds a tar.gz archive holding a single "go" directory.
 func writeTarGz(t *testing.T, path string) {
@@ -69,7 +78,7 @@ func writeZip(t *testing.T, path string) {
 }
 
 func TestExtractTarGz(t *testing.T) {
-	dir := t.TempDir()
+	dir := testutil.TempDir(t)
 	archive := filepath.Join(dir, "go1.22.0.linux-amd64.tar.gz")
 	writeTarGz(t, archive)
 
@@ -90,7 +99,7 @@ func TestExtractTarGz(t *testing.T) {
 }
 
 func TestExtractZip(t *testing.T) {
-	dir := t.TempDir()
+	dir := testutil.TempDir(t)
 	archive := filepath.Join(dir, "go1.22.0.windows-amd64.zip")
 	writeZip(t, archive)
 
@@ -106,9 +115,9 @@ func TestExtractZip(t *testing.T) {
 }
 
 func TestExtractRejectsUnknownFormat(t *testing.T) {
-	dir := t.TempDir()
+	dir := testutil.TempDir(t)
 	archive := filepath.Join(dir, "go1.22.0.rar")
-	if err := os.WriteFile(archive, []byte("x"), 0644); err != nil {
+	if err := compat.WriteFile(archive, []byte("x"), 0644); err != nil {
 		t.Fatal(err)
 	}
 	if err := Extract(archive, dir, filepath.Base(archive)); err == nil {
@@ -119,7 +128,7 @@ func TestExtractRejectsUnknownFormat(t *testing.T) {
 // TestExtractRefusesToEscape makes sure a malicious archive cannot write
 // outside of the destination directory.
 func TestExtractRefusesToEscape(t *testing.T) {
-	dir := t.TempDir()
+	dir := testutil.TempDir(t)
 	archive := filepath.Join(dir, "evil.zip")
 	f, err := os.Create(archive)
 	if err != nil {

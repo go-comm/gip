@@ -3,6 +3,20 @@
 The notable changes of each release of gip, newest first. The version numbers
 follow [semantic versioning](https://semver.org/).
 
+## v0.5.0 - 2026-10-27
+
+### Changed
+
+* gip builds with Go 1.13 and later, down from Go 1.19. The calls that `os`,
+  `io`, `bytes` and `runtime/debug` grew in Go 1.16 and 1.18 now sit behind
+  `internal/compat`, which spells them with `io/ioutil`, a hand-written `Cut`
+  and no build information when the toolchain is older, and the tests bring
+  their own `t.TempDir`, `t.Cleanup` and `t.Setenv`.
+* The version of a binary is read from the build information, which the
+  runtime only keeps since Go 1.18: a binary built with an older toolchain
+  reports the version of the source tree, and `-ldflags "-X
+  main.versionOverride=v1.2.3"` still overrides it.
+
 ## v0.4.0 - 2026-10-22
 
 ### Added

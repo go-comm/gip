@@ -15,7 +15,7 @@ $ go install github.com/go-comm/gip/cmd/gip@latest
 刚发版时校验库可能还不知道这个新版本，安装会报 `invalid version: unknown revision`。版本本身没问题，直接装即可：
 
 ```console
-$ GONOSUMDB=github.com/go-comm/* go install github.com/go-comm/gip/cmd/gip@v0.4.0
+$ GONOSUMDB=github.com/go-comm/* go install github.com/go-comm/gip/cmd/gip@v0.5.0
 ```
 
 ## 使用
@@ -59,7 +59,7 @@ gip 自己负责管理工具链：
 
 ```console
 $ gip version
-gip version v0.4.0
+gip version v0.5.0
 go version go1.22.12 windows/amd64
 
 $ gip env
@@ -257,7 +257,7 @@ MIRROR     https://go.dev/dl
 
 ```console
 $ gip doctor
-gip version v0.4.0
+gip version v0.5.0
 GIP_HOME   /home/user/.gip
 CURRENT    1.22.0
 
@@ -308,18 +308,19 @@ Unix 上的归档是 `.tar.gz` 文件，Windows 上是 `.zip` 文件；下载器
 $ go test ./...
 ```
 
-本项目除标准库外没有任何依赖。
+本项目除标准库外没有任何依赖，用 Go 1.13 及以后的版本即可构建，测试也一样。只有新版本才有的标准库函数（`os.ReadFile`、`os.ReadDir`、`os.MkdirTemp`、`io.ReadAll`、`io.Discard`、`bytes.Cut`、`debug.ReadBuildInfo`）集中在 `internal/compat`，按版本区间用构建约束各写一份实现。
 
 ### 版本号
 
 `gip --version` 从构建信息里取版本号：
 
-* 用 `go install github.com/go-comm/gip/cmd/gip@v0.4.0` 安装的二进制报告 `v0.4.0`。
+* 用 `go install github.com/go-comm/gip/cmd/gip@v0.5.0` 安装的二进制报告 `v0.5.0`。
 * 从仓库构建的二进制报告它所基于的那个 commit 的版本：commit 上带 tag 就报告该 tag，
   在最新 tag 之后则是形如 `v0.2.1-0.20261022133637-62a53e2482f2` 的伪版本。工作区有未提交改动时加上 `+dirty` 后缀。
-* `go run` 完全不带版本信息，报告的是源码树的版本号 `v0.4.0`。
+* `go run` 完全不带版本信息，报告的是源码树的版本号 `v0.5.0`。
 
-也可以在构建时指定：
+运行时只从 Go 1.18 起保存构建信息，而 `gip` 支持用 Go 1.13 及以后的版本构建：
+用更旧的工具链构建出来的二进制同样报告源码树的版本号。也可以在构建时指定：
 
 ```console
 $ go build -ldflags "-X main.versionOverride=v1.2.3" ./cmd/gip

@@ -6,8 +6,16 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/go-comm/gip/internal/compat"
 	"github.com/go-comm/gip/internal/store"
+	"github.com/go-comm/gip/internal/testutil"
 )
+
+func TestMain(m *testing.M) {
+	code := m.Run()
+	testutil.Cleanup()
+	os.Exit(code)
+}
 
 func TestSplitGlobalFlags(t *testing.T) {
 	tests := []struct {
@@ -116,7 +124,7 @@ func TestSplitGlobalFlags(t *testing.T) {
 // newTestStore returns a store holding a single fake release.
 func newTestStore(t *testing.T, v string) *store.Store {
 	t.Helper()
-	s := store.New(t.TempDir())
+	s := store.New(testutil.TempDir(t))
 	if err := s.Ensure(); err != nil {
 		t.Fatal(err)
 	}
@@ -124,7 +132,7 @@ func newTestStore(t *testing.T, v string) *store.Store {
 	if err := os.MkdirAll(filepath.Join(dir, "bin"), 0755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(store.GoBinaryIn(dir), []byte("x"), 0755); err != nil {
+	if err := compat.WriteFile(store.GoBinaryIn(dir), []byte("x"), 0755); err != nil {
 		t.Fatal(err)
 	}
 	if err := s.EnsureVersionDirs(v); err != nil {
@@ -133,8 +141,9 @@ func newTestStore(t *testing.T, v string) *store.Store {
 	return s
 }
 
-// chdir changes the working directory for the duration of a test.
-func chdir(t *testing.T, dir string) {
+// chdir changes the working directory and returns a function that changes it
+// back. Callers defer the result.
+func chdir(t *testing.T, dir string) func() {
 	t.Helper()
 	old, err := os.Getwd()
 	if err != nil {
@@ -143,7 +152,7 @@ func chdir(t *testing.T, dir string) {
 	if err := os.Chdir(dir); err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { os.Chdir(old) })
+	return func() { os.Chdir(old) }
 }
 
 func TestResolveRelease(t *testing.T) {
@@ -163,8 +172,8 @@ func TestResolveRelease(t *testing.T) {
 		}
 	}
 
-	mod := t.TempDir()
-	chdir(t, mod)
+	mod := testutil.TempDir(t)
+	defer chdir(t, mod)()
 
 	// Without a go.mod the current release is used.
 	got, err := resolveRelease(s, options{}, true)
@@ -177,7 +186,7 @@ func TestResolveRelease(t *testing.T) {
 
 	// The go directive states a minimum: the release of the same series is
 	// used, even when it is older than the current one.
-	if err := os.WriteFile(filepath.Join(mod, "go.mod"), []byte("module m\n\ngo 1.21.0\n"), 0644); err != nil {
+	if err := compat.WriteFile(filepath.Join(mod, "go.mod"), []byte("module m\n\ngo 1.21.0\n"), 0644); err != nil {
 		t.Fatal(err)
 	}
 	got, err = resolveRelease(s, options{}, true)
@@ -199,7 +208,7 @@ func TestResolveRelease(t *testing.T) {
 
 	// A missing release is reported instead of being downloaded when
 	// downloading is disabled.
-	if err := os.WriteFile(filepath.Join(mod, "go.mod"), []byte("module m\n\ngo 1.30.0\n"), 0644); err != nil {
+	if err := compat.WriteFile(filepath.Join(mod, "go.mod"), []byte("module m\n\ngo 1.30.0\n"), 0644); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := resolveRelease(s, options{noDownload: true}, false); err == nil {
@@ -211,7 +220,7 @@ func TestResolveRelease(t *testing.T) {
 
 // copyRelease copies a fake release from one store into another.
 func copyRelease(from, to *store.Store, v string) error {
-	data, err := os.ReadFile(store.GoBinaryIn(from.VersionDir(v)))
+	data, err := compat.ReadFile(store.GoBinaryIn(from.VersionDir(v)))
 	if err != nil {
 		return err
 	}
@@ -219,7 +228,7 @@ func copyRelease(from, to *store.Store, v string) error {
 	if err := os.MkdirAll(filepath.Join(dir, "bin"), 0755); err != nil {
 		return err
 	}
-	if err := os.WriteFile(store.GoBinaryIn(dir), data, 0755); err != nil {
+	if err := compat.WriteFile(store.GoBinaryIn(dir), data, 0755); err != nil {
 		return err
 	}
 	return to.EnsureVersionDirs(v)

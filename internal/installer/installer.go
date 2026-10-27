@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-comm/gip/internal/compat"
 	"github.com/go-comm/gip/internal/downloader"
 	"github.com/go-comm/gip/internal/store"
 	"github.com/go-comm/gip/pkg/version"
@@ -43,7 +44,7 @@ func (in *Installer) Install(ctx context.Context, req string, exact bool) (strin
 		in.Mirror = downloader.Mirror()
 	}
 	if in.Out == nil {
-		in.Out = io.Discard
+		in.Out = compat.Discard
 	}
 
 	norm := version.TrimGo(strings.TrimSpace(req))
@@ -116,7 +117,7 @@ func (in *Installer) install(ctx context.Context, m *downloader.Manifest, releas
 
 	// The archive is downloaded next to its destination so that the final
 	// move is a rename on the same file system.
-	archive, err := os.CreateTemp(in.Store.VersionsDir(), ".tmp-download-*")
+	archive, err := compat.TempFile(in.Store.VersionsDir(), ".tmp-download-*")
 	if err != nil {
 		return err
 	}
@@ -129,7 +130,7 @@ func (in *Installer) install(ctx context.Context, m *downloader.Manifest, releas
 		return err
 	}
 
-	extractDir, err := os.MkdirTemp(in.Store.VersionsDir(), ".tmp-extract-*")
+	extractDir, err := compat.TempDir(in.Store.VersionsDir(), ".tmp-extract-*")
 	if err != nil {
 		return err
 	}

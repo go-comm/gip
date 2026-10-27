@@ -21,7 +21,7 @@ yet, and the install fails with `invalid version: unknown revision`. The
 release itself is fine, so installing it directly works:
 
 ```console
-$ GONOSUMDB=github.com/go-comm/* go install github.com/go-comm/gip/cmd/gip@v0.4.0
+$ GONOSUMDB=github.com/go-comm/* go install github.com/go-comm/gip/cmd/gip@v0.5.0
 ```
 
 ## Usage
@@ -84,7 +84,7 @@ manages followed by the environment of the release:
 
 ```console
 $ gip version
-gip version v0.4.0
+gip version v0.5.0
 go version go1.22.12 windows/amd64
 
 $ gip env
@@ -329,7 +329,7 @@ a status of 1 when it finds any, which makes it usable in a script:
 
 ```console
 $ gip doctor
-gip version v0.4.0
+gip version v0.5.0
 GIP_HOME   /home/user/.gip
 CURRENT    1.22.0
 
@@ -393,22 +393,29 @@ above.
 $ go test ./...
 ```
 
-The project has no dependencies outside the standard library.
+The project has no dependencies outside the standard library, and it builds
+with Go 1.13 and later; the tests do as well. The standard library calls that
+only newer releases carry — `os.ReadFile`, `os.ReadDir`, `os.MkdirTemp`,
+`io.ReadAll`, `io.Discard`, `bytes.Cut`, `debug.ReadBuildInfo` — live in
+`internal/compat`, one implementation per release range behind build
+constraints.
 
 ### Version
 
 `gip --version` reports the version from the build information:
 
-* A binary installed with `go install github.com/go-comm/gip/cmd/gip@v0.4.0`
-  reports `v0.4.0`.
+* A binary installed with `go install github.com/go-comm/gip/cmd/gip@v0.5.0`
+  reports `v0.5.0`.
 * A binary built from a repository reports the version of the commit it
   was built from: the tag when the commit carries one, and a pseudo-version
   such as `v0.2.1-0.20261022133637-62a53e2482f2` when the commit is after the
   latest tag. A modified working tree adds a `+dirty` suffix.
 * `go run` carries no version information at all and reports the version of
-  the source tree, `v0.4.0`.
+  the source tree, `v0.5.0`.
 
-The version can be set at build time with
+The runtime only keeps the build information since Go 1.18, and gip builds with
+Go 1.13 and later: a binary built with an older toolchain reports the version of
+the source tree as well. The version can be set at build time with
 
 ```console
 $ go build -ldflags "-X main.versionOverride=v1.2.3" ./cmd/gip
