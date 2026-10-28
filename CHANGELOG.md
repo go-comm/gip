@@ -3,6 +3,22 @@
 The notable changes of each release of gip, newest first. The version numbers
 follow [semantic versioning](https://semver.org/).
 
+## v0.6.0 - 2026-10-28
+
+### Added
+
+* A `bin` directory in the gip home holds a versioned name for every command of
+  every installed release: `go1.20.14` and `gofmt1.20.14` for the commands of
+  the release, `gopls-go1.20.14` for the tools of its `GOBIN`. What a name runs
+  is gip itself, which reads the name it was started under and runs that command
+  of that release with its `GOROOT`, `GOBIN` and `GOCACHE` pinned, so the name
+  works whatever the current release is and whatever the working directory
+  asks for. Putting one directory on the `PATH` therefore reaches every release.
+* The names are created when a release is installed, removed when a release is
+  uninstalled and refreshed when `go install` or `go get` leaves a tool in the
+  `GOBIN` of a release. A name is a link to the gip binary, or a copy of it on
+  a file system that cannot link the two directories.
+
 ## v0.5.0 - 2026-10-27
 
 ### Changed

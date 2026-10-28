@@ -127,7 +127,15 @@ func envKey(name string) string {
 // The arguments are passed on unchanged; gip only decides which go command
 // runs.
 func (r *Runner) Run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
-	bin := r.GoBinary()
+	return r.RunFile(r.GoBinary(), args, stdin, stdout, stderr)
+}
+
+// RunFile runs the command at the given path with the environment of the
+// release.
+//
+// It is what the versioned names of the bin directory run: the path of the
+// command is known, so it does not have to be looked up in the PATH.
+func (r *Runner) RunFile(bin string, args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 	if _, err := os.Stat(bin); err != nil {
 		return fmt.Errorf("cannot run %s: %v", bin, err)
 	}

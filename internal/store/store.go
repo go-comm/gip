@@ -13,6 +13,10 @@
 //	├── gocache/
 //	│   ├── 1.19.10/        <- GOCACHE of that release
 //	│   └── 1.22.0/
+//	├── bin/
+//	│   ├── go1.22.0.exe           <- go of that release
+//	│   ├── gofmt1.22.0.exe        <- gofmt of that release
+//	│   └── gopls-go1.22.0.exe     <- gopls of that release's GOBIN
 //	└── current/
 //	    ├── gobin  -> ../gobin/1.22.0
 //	    └── goroot -> ../versions/1.22.0
@@ -70,6 +74,10 @@ func Default() (*Store, error) {
 
 // VersionsDir is the directory holding the installed toolchains.
 func (s *Store) VersionsDir() string { return filepath.Join(s.Root, "versions") }
+
+// BinDir is the directory holding the versioned shims of the go command and
+// of the tools of the installed releases.
+func (s *Store) BinDir() string { return filepath.Join(s.Root, "bin") }
 
 // VersionDir is the GOROOT of the given release.
 func (s *Store) VersionDir(v string) string {

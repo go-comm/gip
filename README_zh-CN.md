@@ -15,7 +15,7 @@ $ go install github.com/go-comm/gip/cmd/gip@latest
 刚发版时校验库可能还不知道这个新版本，安装会报 `invalid version: unknown revision`。版本本身没问题，直接装即可：
 
 ```console
-$ GONOSUMDB=github.com/go-comm/* go install github.com/go-comm/gip/cmd/gip@v0.5.0
+$ GONOSUMDB=github.com/go-comm/* go install github.com/go-comm/gip/cmd/gip@v0.6.0
 ```
 
 ## 使用
@@ -59,7 +59,7 @@ gip 自己负责管理工具链：
 
 ```console
 $ gip version
-gip version v0.5.0
+gip version v0.6.0
 go version go1.22.12 windows/amd64
 
 $ gip env
@@ -179,10 +179,16 @@ switched to go1.21.13
 ├── gocache/
 │   ├── 1.19.10/          <- 该版本的 GOCACHE
 │   └── 1.22.0/
+├── bin/
+│   ├── go1.22.0          <- 该版本的 go 命令
+│   ├── gofmt1.22.0       <- 该版本的 gofmt
+│   └── gopls-go1.22.0    <- 用该版本装入 gobin 的 gopls
 └── current/
     ├── gobin  -> ../gobin/1.22.0
     └── goroot -> ../versions/1.22.0
 ```
+
+Windows 上 `bin` 里的名字都带 `.exe` 后缀。
 
 `GOROOT` 始终指向 `versions/<version>`，绝不会指向 `current` 目录本身——那个目录里只有链接，没有 `src`、`pkg`、`lib` 目录。例外是其中的 `goroot` 链接：它指向一个完整的 GOROOT，正是给需要 GOROOT 的工具用的。这些链接是给那些把 `~/.gip/current/goroot/bin` 加进 `PATH` 的人提供便利。
 
@@ -223,6 +229,28 @@ $ gip exec stringer            # 装在该版本 gobin 里的工具
 
 在项目里执行 `gip` 会切换当前版本，之后启动的工具就会使用该项目要求的版本。
 
+### bin 目录
+
+更方便的替代办法是把 gip 主目录下的 `bin` 目录放进 PATH：
+
+```
+~/.gip/bin
+```
+
+它里面是所有已安装版本的带版本名字：
+
+```
+go1.22.0        1.22.0 的 go 命令
+gofmt1.22.0     1.22.0 的 gofmt
+gopls-go1.22.0  用 1.22.0 安装的 gopls
+```
+
+这些名字都是指向 gip 程序的硬链接，运行哪个版本的命令由名字决定，与当前版本和工作目录无关，因此它们是用固定方式访问所有已安装工具链的办法。
+
+把 `~/.gip/bin` 放进 PATH，就能用带版本的名字用到所有已安装的版本。Windows 上的名字都带 `.exe` 后缀；无法在两个目录之间建链接的文件系统会拿到 gip 程序的一份副本，而不是链接。
+
+安装版本时名字被建立，卸载版本时名字被删除，`go install` 或 `go get` 在该版本的 gobin 目录里留下新工具时名字被刷新。
+
 ### GOROOT 链接
 
 需要完整 GOROOT 的工具（比如 VS Code 的 Go 扩展）不能用 `current` 目录本身：里面是 `gobin` 和 `goroot` 两个链接，都不是带 `src`、`pkg`、`lib` 子目录的 GOROOT 目录。
@@ -257,7 +285,7 @@ MIRROR     https://go.dev/dl
 
 ```console
 $ gip doctor
-gip version v0.5.0
+gip version v0.6.0
 GIP_HOME   /home/user/.gip
 CURRENT    1.22.0
 
@@ -314,10 +342,10 @@ $ go test ./...
 
 `gip --version` 从构建信息里取版本号：
 
-* 用 `go install github.com/go-comm/gip/cmd/gip@v0.5.0` 安装的二进制报告 `v0.5.0`。
+* 用 `go install github.com/go-comm/gip/cmd/gip@v0.6.0` 安装的二进制报告 `v0.6.0`。
 * 从仓库构建的二进制报告它所基于的那个 commit 的版本：commit 上带 tag 就报告该 tag，
   在最新 tag 之后则是形如 `v0.2.1-0.20261022133637-62a53e2482f2` 的伪版本。工作区有未提交改动时加上 `+dirty` 后缀。
-* `go run` 完全不带版本信息，报告的是源码树的版本号 `v0.5.0`。
+* `go run` 完全不带版本信息，报告的是源码树的版本号 `v0.6.0`。
 
 运行时只从 Go 1.18 起保存构建信息，而 `gip` 支持用 Go 1.13 及以后的版本构建：
 用更旧的工具链构建出来的二进制同样报告源码树的版本号。也可以在构建时指定：

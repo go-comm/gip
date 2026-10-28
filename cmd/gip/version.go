@@ -4,7 +4,7 @@ import "github.com/go-comm/gip/internal/compat"
 
 // defaultVersion is the version of gip when the build information does not
 // carry one.
-const defaultVersion = "v0.5.0"
+const defaultVersion = "v0.6.0"
 
 // versionOverride can be set at build time with
 // -ldflags "-X main.versionOverride=v1.2.3".
@@ -13,7 +13,7 @@ var versionOverride = ""
 // buildVersion returns the version of gip.
 //
 // The build information carries the version when gip was installed with
-// "go install github.com/go-comm/gip/cmd/gip@v0.5.0", and when it was built
+// "go install github.com/go-comm/gip/cmd/gip@v0.6.0", and when it was built
 // from a repository: the tag of the commit the binary was built from, or a
 // pseudo-version when the commit is after the latest tag. A modified working
 // tree adds a "+dirty" suffix.

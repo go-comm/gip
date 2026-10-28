@@ -24,6 +24,7 @@ import (
 	"github.com/go-comm/gip/internal/exec"
 	"github.com/go-comm/gip/internal/installer"
 	"github.com/go-comm/gip/internal/resolver"
+	"github.com/go-comm/gip/internal/shim"
 	"github.com/go-comm/gip/internal/store"
 	"github.com/go-comm/gip/pkg/version"
 )
@@ -55,6 +56,12 @@ var errUsage = errors.New("usage")
 // The commands gip owns are handled here, everything else is passed on to the
 // go command.
 func run(args []string) error {
+	// Started under one of the versioned names of the bin directory, gip is
+	// that command of that release and nothing else.
+	if tool, release, ok := shim.Parse(filepath.Base(os.Args[0])); ok {
+		return runShim(tool, release)
+	}
+
 	global, rest := splitGlobalFlags(args)
 	if len(rest) > 0 && rest[0] == "--" {
 		// The separator only ends the flags of gip itself; the command
@@ -304,6 +311,36 @@ func openStore() (*store.Store, error) {
 	return store.Default()
 }
 
+// runShim runs the command gip was started under the name of.
+//
+// The name pins the release, so neither the module in the working directory
+// nor the current release has a say, and no release is downloaded to answer
+// the command: the release the name asks for has to be installed.
+func runShim(tool, release string) error {
+	st, err := openStore()
+	if err != nil {
+		return err
+	}
+	bin, ok := shim.Binary(st, tool, release)
+	if !ok {
+		return fmt.Errorf("go %s does not provide %s: is the release installed and the tool built?", release, tool)
+	}
+	return newRunner(st, release).RunFile(bin, os.Args[1:], os.Stdin, os.Stdout, os.Stderr)
+}
+
+// refreshShims keeps the versioned names of the bin directory in step with a
+// release.
+//
+// It is best effort: the names are a convenience, and the commands of gip work
+// with or without them.
+func refreshShims(st *store.Store, release string) {
+	exe, err := os.Executable()
+	if err != nil {
+		return
+	}
+	_ = shim.Ensure(st, exe, release)
+}
+
 // cmdToolchain dispatches the commands of the toolchain namespace.
 func cmdToolchain(global options, args []string) error {
 	if len(args) == 0 {
@@ -351,9 +388,12 @@ func cmdToolchainInstall(global options, args []string) error {
 	}
 
 	// The installer reports what it did on stderr.
-	if _, err := in.Install(context.Background(), norm, version.IsRelease(norm)); err != nil {
+	rel, err := in.Install(context.Background(), norm, version.IsRelease(norm))
+	if err != nil {
 		return err
 	}
+	// Make the versioned names available in the bin directory.
+	refreshShims(st, rel)
 	return nil
 }
 
@@ -474,6 +514,8 @@ func cmdToolchainUninstall(global options, args []string) error {
 	if err := st.Remove(release); err != nil {
 		return err
 	}
+	// Remove the versioned names of the release.
+	_ = shim.Remove(st, release)
 	fmt.Printf("removed go%s\n", release)
 	return nil
 }
@@ -528,6 +570,7 @@ func printToolchainEnv(st *store.Store, release, mirror string) error {
 	}
 	fmt.Fprintf(w, "GOROOT_LINK\t%s\n", st.GorootLink())
 	fmt.Fprintf(w, "GO_BIN\t%s\n", st.GorootBinDir())
+	fmt.Fprintf(w, "BIN_DIR\t%s\n", st.BinDir())
 	fmt.Fprintf(w, "MIRROR\t%s\n", mirror)
 	return w.Flush()
 }
@@ -714,7 +757,27 @@ func runGo(global options, args []string, allowDownload bool) error {
 		return err
 	}
 	runner := newRunner(st, release)
-	return runner.Run(args, os.Stdin, os.Stdout, os.Stderr)
+	if err := runner.Run(args, os.Stdin, os.Stdout, os.Stderr); err != nil {
+		return err
+	}
+	// The commands that build a tool into the GOBIN of the release leave a new
+	// command behind that has to gain its versioned name as well.
+	if installsTool(args) {
+		refreshShims(st, release)
+	}
+	return nil
+}
+
+// installsTool reports whether a go command can leave a new tool in the GOBIN.
+func installsTool(args []string) bool {
+	if len(args) == 0 {
+		return false
+	}
+	switch args[0] {
+	case "install", "get":
+		return true
+	}
+	return false
 }
 
 // newRunner returns a runner for the go command of a release.

@@ -21,7 +21,7 @@ yet, and the install fails with `invalid version: unknown revision`. The
 release itself is fine, so installing it directly works:
 
 ```console
-$ GONOSUMDB=github.com/go-comm/* go install github.com/go-comm/gip/cmd/gip@v0.5.0
+$ GONOSUMDB=github.com/go-comm/* go install github.com/go-comm/gip/cmd/gip@v0.6.0
 ```
 
 ## Usage
@@ -84,7 +84,7 @@ manages followed by the environment of the release:
 
 ```console
 $ gip version
-gip version v0.5.0
+gip version v0.6.0
 go version go1.22.12 windows/amd64
 
 $ gip env
@@ -221,10 +221,16 @@ Everything lives under `~/.gip`, or `$GIP_HOME` if it is set:
 ├── gocache/
 │   ├── 1.19.10/          <- GOCACHE of that release
 │   └── 1.22.0/
+├── bin/
+│   ├── go1.22.0           <- go of that release
+│   ├── gofmt1.22.0        <- gofmt of that release
+│   └── gopls-go1.22.0     <- gopls of that release's GOBIN
 └── current/
     ├── gobin  -> ../gobin/1.22.0
     └── goroot -> ../versions/1.22.0
 ```
+
+On Windows the names in `bin` end in `.exe`.
 
 `GOROOT` always points at `versions/<version>`, never at the `current`
 directory itself, which holds links and no `src`, `pkg` and `lib`
@@ -285,6 +291,34 @@ Put the bin directory of the current release in front of it:
 Running `gip` in a project switches the current release, so a tool that is
 started afterwards works with the version the project asks for.
 
+### The bin directory
+
+A more convenient alternative is the `bin` directory of the gip home:
+
+```
+~/.gip/bin
+```
+
+It contains versioned names for every installed release:
+
+```
+go1.22.0        the go command of 1.22.0
+gofmt1.22.0     the gofmt of 1.22.0
+gopls-go1.22.0  the gopls installed with 1.22.0
+```
+
+These names are hard links to the gip binary and run the command of the pinned
+release no matter what the current release is or where the working directory is.
+This makes them a stable, release-agnostic way to reach any installed toolchain.
+
+Add `~/.gip/bin` to the PATH to make all installed releases available by their
+versioned names. On Windows the names end in `.exe`, and a file system that
+cannot link the two directories gets a copy of the gip binary instead of a link.
+
+The names are created when a release is installed, removed when a release is
+uninstalled, and refreshed when `go install` or `go get` leaves a tool in the
+gobin directory of a release.
+
 ### The GOROOT link
 
 A tool that needs a GOROOT, such as the VS Code Go extension, cannot use
@@ -312,6 +346,7 @@ GOBIN      /home/user/.gip/gobin/1.22.0
 GOCACHE    /home/user/.gip/gocache/1.22.0
 GOROOT_LINK /home/user/.gip/current/goroot
 GO_BIN      /home/user/.gip/current/goroot/bin
+BIN_DIR     /home/user/.gip/bin
 MIRROR     https://go.dev/dl
 ```
 
@@ -329,7 +364,7 @@ a status of 1 when it finds any, which makes it usable in a script:
 
 ```console
 $ gip doctor
-gip version v0.5.0
+gip version v0.6.0
 GIP_HOME   /home/user/.gip
 CURRENT    1.22.0
 
@@ -404,14 +439,14 @@ constraints.
 
 `gip --version` reports the version from the build information:
 
-* A binary installed with `go install github.com/go-comm/gip/cmd/gip@v0.5.0`
-  reports `v0.5.0`.
+* A binary installed with `go install github.com/go-comm/gip/cmd/gip@v0.6.0`
+  reports `v0.6.0`.
 * A binary built from a repository reports the version of the commit it
   was built from: the tag when the commit carries one, and a pseudo-version
   such as `v0.2.1-0.20261022133637-62a53e2482f2` when the commit is after the
   latest tag. A modified working tree adds a `+dirty` suffix.
 * `go run` carries no version information at all and reports the version of
-  the source tree, `v0.5.0`.
+  the source tree, `v0.6.0`.
 
 The runtime only keeps the build information since Go 1.18, and gip builds with
 Go 1.13 and later: a binary built with an older toolchain reports the version of
